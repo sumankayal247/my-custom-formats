@@ -271,6 +271,8 @@ async function runCompressionDiagnostics(bytes, onLog = null) {
 async function compressDeflate(bytes, onLog = null) {
   try {
     reportLog(onLog, "CompressionStream: starting deflate-raw");
+    await runCompressionDiagnostics(bytes, onLog);
+    reportLog(onLog, "CompressionStream: deep diagnostics finished; starting production compression");
     const result = await streamBytes(bytes, "deflate-raw", "compress", onLog);
     reportLog(onLog, `CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
     return result;
