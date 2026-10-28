@@ -117,6 +117,9 @@ Original XIMG viewer kept commented out before SumanImg replacement.
       }
     }
 
+    /*
+    Original convertImage kept commented out before performance replacement.
+
     async function convertImage(file) {
       if (!file) return;
       setStatus(`Converting ${file.name}…`);
@@ -152,6 +155,58 @@ Original XIMG viewer kept commented out before SumanImg replacement.
 
         const decoded = await decodeSumanImg(new Uint8Array(buffer));
         showPixels(decoded);
+        setStatus(`Created ${link.download} successfully.`);
+      } catch (error) {
+        setStatus(error?.message || 'Unable to convert this image.', true);
+      }
+    }
+    */
+
+    async function convertImage(file) {
+      if (!file) return;
+      setStatus(`Preparing ${file.name}…`);
+      try {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.decoding = 'async';
+        image.src = url;
+        await image.decode();
+        URL.revokeObjectURL(url);
+
+        if (image.width > 16384 || image.height > 16384) throw new Error('Image exceeds the SumanImg v1 dimension limit.');
+
+        setStatus(`Reading pixels from ${file.name}…`);
+        const temp = document.createElement('canvas');
+        temp.width = image.width;
+        temp.height = image.height;
+        const tempContext = temp.getContext('2d', { willReadFrequently: true });
+        tempContext.drawImage(image, 0, 0);
+        const pixels = tempContext.getImageData(0, 0, image.width, image.height).data;
+
+        setStatus(`Compressing ${file.name}…`);
+        const buffer = await encodeSumanImg({
+          width: image.width,
+          height: image.height,
+          rgba: pixels,
+          metadata: { sourceName: file.name, createdBy: 'SumanImg Viewer', version: 1 }
+        });
+
+        setStatus(`Preparing download for ${file.name}…`);
+        const blob = new Blob([buffer], { type: 'image/x-sumanimg' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${file.name.replace(/\.[^.]+$/, '')}.sumanImg`;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+
+        /* The source pixels are already available, so do not decode the new file again. */
+        showPixels({
+          width: image.width,
+          height: image.height,
+          rgba: pixels,
+          metadata: { sourceName: file.name, createdBy: 'SumanImg Viewer', version: 1 }
+        });
         setStatus(`Created ${link.download} successfully.`);
       } catch (error) {
         setStatus(error?.message || 'Unable to convert this image.', true);
