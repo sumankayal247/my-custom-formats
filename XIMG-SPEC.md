@@ -1,10 +1,19 @@
-# XIMG v1 Specification
+# SumanImg v1 Specification
 
-XIMG is a self-contained custom image container designed for local browser decoding.
+SumanImg is a self-contained custom image container designed for local browser decoding.
+
+## Identity
+
+- File extension: `.sumanImg`
+- Format name: **SumanImg**
+- Internal magic bytes: ASCII `SMIG`
+- Recommended MIME type: `image/x-sumanimg`
+
+The `.sumanImg` extension is the user-facing file format. The internal magic bytes identify the binary format independently of its filename.
 
 ## Goals
 
-- `.ximg` is a real binary format, not a renamed PNG/JPEG.
+- `.sumanImg` is a real binary format, not a renamed PNG/JPEG.
 - Browser decoding happens locally; the image is not uploaded by the viewer.
 - The format is versioned so future revisions can remain compatible.
 - v1 is lossless RGBA with DEFLATE compression.
@@ -14,7 +23,7 @@ XIMG is a self-contained custom image container designed for local browser decod
 
 ```text
 Offset  Size  Field
-0       4     Magic: ASCII `XIMG`
+0       4     Magic: ASCII `SMIG`
 4       1     Version: `1`
 5       1     Flags
 6       1     Color model: `1` = RGBA8
@@ -49,20 +58,20 @@ width × height × 4
 
 `1` means DEFLATE. The payload is a raw DEFLATE stream (RFC 1951), not a zlib or gzip wrapper.
 
-Browsers can decode this using `DecompressionStream("deflate-raw")` where supported. The bundled viewer also includes a compatibility path for environments that expose only a zlib-wrapped `deflate` stream.
+Browsers can decode this using `DecompressionStream("deflate-raw")` where supported. The bundled viewer includes a compatibility path for environments that expose only a zlib-wrapped `deflate` stream.
 
 ## Metadata
 
 Metadata is UTF-8 encoded JSON. An empty metadata block has length `0` and represents no metadata.
 
-Suggested keys are application-defined. XIMG itself does not require any metadata keys.
+Suggested keys are application-defined. SumanImg itself does not require any metadata keys.
 
 Example:
 
 ```json
 {
   "name": "example",
-  "software": "XIMG Viewer",
+  "software": "SumanImg Viewer",
   "created": "2026-10-28T00:00:00Z"
 }
 ```
@@ -91,15 +100,8 @@ A v1 decoder must reject:
 
 Recommended implementation limit for browser viewers: reject images larger than `16384 × 16384` pixels before allocation.
 
-## MIME type and extension
-
-- Extension: `.ximg`
-- Recommended MIME type: `image/x-ximg`
-
-The MIME type is informational. Operating systems and browsers do not automatically gain native XIMG support merely from this registration.
-
 ## Compatibility strategy
 
-The canonical XIMG implementation should live in portable JavaScript/TypeScript. Native applications can implement the same binary specification independently.
+The canonical SumanImg implementation should live in portable JavaScript/TypeScript. Native applications can implement the same binary specification independently.
 
 The v1 format deliberately keeps the codec simple. A future version can add other color models, compression codecs, thumbnails or animation through new version/flag definitions without changing the v1 interpretation.
