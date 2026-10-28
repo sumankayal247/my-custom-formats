@@ -69,7 +69,7 @@ The SumanImg v1 format and browser conversion API remain unchanged.
     .brand p { margin:3px 0 0; color:var(--muted); font-size:12px; }
     .pill { padding:8px 11px; border:1px solid var(--line); border-radius:999px; color:#cbd5e1; background:rgba(255,255,255,.045); font-size:12px; backdrop-filter:blur(14px); }
 
-    .hero, .viewer, .progress-card {
+    .hero, .viewer, .progress-card, .nerd-card {
       border:1px solid var(--line); background:var(--glass); backdrop-filter:blur(24px) saturate(140%);
       -webkit-backdrop-filter:blur(24px) saturate(140%); box-shadow:0 24px 80px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
       border-radius:28px;
@@ -105,6 +105,28 @@ The SumanImg v1 format and browser conversion API remain unchanged.
     .progress-bar.busy { background-size:200% 100%; animation:shimmer 1.1s linear infinite; }
     .progress-detail { margin-top:9px; color:var(--muted); font-size:11px; }
 
+    .nerd-toggle { width:100%; margin-top:10px; text-align:left; display:flex; align-items:center; justify-content:space-between; gap:12px; background:rgba(255,255,255,.045); border:1px solid var(--line); color:#cbd5e1; }
+    .nerd-toggle span:last-child { color:#7f8ba1; font-size:11px; }
+    .nerd-card { display:none; margin-top:10px; overflow:hidden; }
+    .nerd-card.visible { display:block; animation:rise .2s ease; }
+    .nerd-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); background:rgba(0,0,0,.16); }
+    .nerd-title { font-size:12px; font-weight:700; letter-spacing:.03em; }
+    .nerd-live { display:flex; align-items:center; gap:7px; color:#94a3b8; font-size:10px; }
+    .nerd-dot { width:7px; height:7px; border-radius:50%; background:#64748b; box-shadow:0 0 0 transparent; }
+    .nerd-dot.active { background:#34d399; box-shadow:0 0 12px rgba(52,211,153,.8); animation:pulse 1s infinite; }
+    .nerd-log { max-height:330px; overflow:auto; padding:12px; background:#050811; font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace; }
+    .nerd-line { display:grid; grid-template-columns:74px 82px 1fr; gap:8px; padding:2px 0; color:#aeb8ca; }
+    .nerd-time { color:#64748b; }
+    .nerd-kind { color:#818cf8; }
+    .nerd-message { overflow-wrap:anywhere; }
+    .nerd-line.warn .nerd-kind { color:#fbbf24; }
+    .nerd-line.error .nerd-kind { color:#fb7185; }
+    .nerd-line.success .nerd-kind { color:#34d399; }
+    .nerd-meta { display:flex; flex-wrap:wrap; gap:8px; padding:10px 12px; border-top:1px solid var(--line); background:rgba(255,255,255,.025); }
+    .nerd-meta span { color:#8f9bb0; font-size:10px; }
+    .nerd-actions { display:flex; gap:7px; }
+    .nerd-actions button { padding:5px 8px; font-size:10px; }
+
     .status { min-height:20px; margin:17px 4px 0; color:#aeb8ca; font-size:13px; }
     .status.error { color:#fda4af; }
     .viewer { display:none; margin-top:18px; overflow:hidden; }
@@ -117,7 +139,8 @@ The SumanImg v1 format and browser conversion API remain unchanged.
 
     @keyframes shimmer { to { background-position:200% 0; } }
     @keyframes rise { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
-    @media (max-width:650px) { .app{width:min(94vw,560px);padding-top:20px}.hero{padding:24px;border-radius:22px}.hero h2{font-size:36px}.dropzone{padding:24px 16px}.topbar .pill{display:none}.actions button{width:100%} }
+    @keyframes pulse { 50% { opacity:.45; } }
+    @media (max-width:650px) { .app{width:min(94vw,560px);padding-top:20px}.hero{padding:24px;border-radius:22px}.hero h2{font-size:36px}.dropzone{padding:24px 16px}.topbar .pill{display:none}.actions button{width:100%}.nerd-line{grid-template-columns:62px 70px 1fr}.nerd-log{max-height:280px} }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }
   </style>
 </head>
@@ -156,6 +179,21 @@ The SumanImg v1 format and browser conversion API remain unchanged.
       <div class="progress-detail" id="progressDetail">Starting conversion</div>
     </section>
 
+    <button id="nerdToggle" class="nerd-toggle" type="button" aria-expanded="false"><span>🧪 Nerd View — live conversion diagnostics</span><span id="nerdToggleLabel">Show</span></button>
+    <section class="nerd-card" id="nerdCard" aria-live="polite">
+      <div class="nerd-head">
+        <div class="nerd-title">BACKGROUND WORK MONITOR</div>
+        <div class="nerd-live"><span class="nerd-dot" id="nerdDot"></span><span id="nerdLiveLabel">Idle</span></div>
+      </div>
+      <div class="nerd-log" id="nerdLog"></div>
+      <div class="nerd-meta">
+        <span id="nerdElapsed">Elapsed: 0.0s</span>
+        <span id="nerdHeartbeat">Heartbeat: —</span>
+        <span id="nerdMemory">JS heap: —</span>
+        <div class="nerd-actions"><button id="nerdCopy" class="secondary" type="button">Copy log</button><button id="nerdClear" class="secondary" type="button">Clear</button></div>
+      </div>
+    </section>
+
     <section class="viewer" id="viewer">
       <div class="preview-wrap"><canvas id="canvas"></canvas></div>
       <div class="info"><span id="dimensions"></span><span id="metadata"></span><span id="fileSize"></span></div>
@@ -185,7 +223,22 @@ The SumanImg v1 format and browser conversion API remain unchanged.
     const progressStage = document.getElementById('progressStage');
     const progressPercent = document.getElementById('progressPercent');
     const progressDetail = document.getElementById('progressDetail');
+    const nerdToggle = document.getElementById('nerdToggle');
+    const nerdToggleLabel = document.getElementById('nerdToggleLabel');
+    const nerdCard = document.getElementById('nerdCard');
+    const nerdLog = document.getElementById('nerdLog');
+    const nerdDot = document.getElementById('nerdDot');
+    const nerdLiveLabel = document.getElementById('nerdLiveLabel');
+    const nerdElapsed = document.getElementById('nerdElapsed');
+    const nerdHeartbeat = document.getElementById('nerdHeartbeat');
+    const nerdMemory = document.getElementById('nerdMemory');
+    const nerdCopy = document.getElementById('nerdCopy');
+    const nerdClear = document.getElementById('nerdClear');
     const context = canvas.getContext('2d', { alpha: true });
+
+    let nerdStartTime = 0;
+    let nerdTimer = null;
+    let nerdHeartbeatTimer = null;
 
     function setStatus(message, error = false) {
       status.textContent = message;
@@ -204,6 +257,70 @@ The SumanImg v1 format and browser conversion API remain unchanged.
     function hideProgress() {
       progressCard.classList.remove('visible');
       progressBar.classList.remove('busy');
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return `${(bytes / 1024 ** index).toFixed(index ? 2 : 0)} ${units[index]}`;
+    }
+
+    function formatDuration(ms) {
+      return `${(ms / 1000).toFixed(3)}s`;
+    }
+
+    function memoryText() {
+      if (!performance.memory) return 'JS heap: unavailable';
+      return `JS heap: ${formatBytes(performance.memory.usedJSHeapSize)} / ${formatBytes(performance.memory.jsHeapSizeLimit)}`;
+    }
+
+    function nerdLog(message, kind = 'INFO') {
+      const elapsed = nerdStartTime ? formatDuration(performance.now() - nerdStartTime) : '0.000s';
+      const line = document.createElement('div');
+      line.className = `nerd-line ${kind.toLowerCase()}`;
+      line.innerHTML = `<span class="nerd-time">+${elapsed}</span><span class="nerd-kind">${kind}</span><span class="nerd-message"></span>`;
+      line.querySelector('.nerd-message').textContent = message;
+      nerdLog.appendChild(line);
+      nerdLog.scrollTop = nerdLog.scrollHeight;
+    }
+
+    function startNerdMonitor(file) {
+      stopNerdMonitor();
+      nerdLog.innerHTML = '';
+      nerdStartTime = performance.now();
+      nerdDot.classList.add('active');
+      nerdLiveLabel.textContent = 'Running';
+      nerdLog(`INPUT: ${file.name} (${formatBytes(file.size)}, ${file.type || 'unknown MIME'})`);
+      nerdLog(`Environment: ${navigator.userAgentData?.browser?.[0]?.brand || navigator.userAgent}`);
+      nerdLog(`Compression API: ${typeof CompressionStream === 'undefined' ? 'UNAVAILABLE' : 'CompressionStream available'}`);
+      nerdLog(`Canvas API: ${typeof OffscreenCanvas === 'undefined' ? 'OffscreenCanvas unavailable' : 'OffscreenCanvas available'}`);
+      nerdTimer = setInterval(() => {
+        const elapsed = performance.now() - nerdStartTime;
+        nerdElapsed.textContent = `Elapsed: ${(elapsed / 1000).toFixed(1)}s`;
+        nerdMemory.textContent = memoryText();
+      }, 250);
+      nerdHeartbeatTimer = setInterval(() => {
+        nerdHeartbeat.textContent = `Heartbeat: ${new Date().toLocaleTimeString()}`;
+      }, 1000);
+    }
+
+    function stopNerdMonitor() {
+      if (nerdTimer) clearInterval(nerdTimer);
+      if (nerdHeartbeatTimer) clearInterval(nerdHeartbeatTimer);
+      nerdTimer = null;
+      nerdHeartbeatTimer = null;
+      nerdDot.classList.remove('active');
+      nerdLiveLabel.textContent = 'Idle';
+    }
+
+    function nerdDone(kind = 'SUCCESS') {
+      const elapsed = nerdStartTime ? formatDuration(performance.now() - nerdStartTime) : '0.000s';
+      nerdElapsed.textContent = `Elapsed: ${elapsed.replace('s', '')}s`;
+      nerdMemory.textContent = memoryText();
+      stopNerdMonitor();
+      nerdLiveLabel.textContent = kind === 'ERROR' ? 'Stopped with error' : 'Finished';
+      nerdLog(`PROCESS ${kind === 'ERROR' ? 'STOPPED' : 'FINISHED'} after ${elapsed}`, kind);
     }
 
     function showPixels(image, outputBytes = null) {
@@ -227,30 +344,35 @@ The SumanImg v1 format and browser conversion API remain unchanged.
       metadata.textContent = '';
       fileSize.textContent = '';
       hideProgress();
+      stopNerdMonitor();
       setStatus('Ready — choose an image to begin.');
-    }
-
-    function formatBytes(bytes) {
-      if (!bytes) return '0 B';
-      const units = ['B', 'KB', 'MB', 'GB'];
-      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-      return `${(bytes / 1024 ** index).toFixed(index ? 2 : 0)} ${units[index]}`;
     }
 
     async function openSumanImg(file) {
       if (!file) return;
+      startNerdMonitor(file);
+      nerdLog('ACTION: reading local SumanImg file');
       setProgress(10, 'Reading file', file.name);
       setStatus(`Reading ${file.name}…`);
       try {
+        const readStart = performance.now();
         const bytes = new Uint8Array(await file.arrayBuffer());
+        nerdLog(`File.arrayBuffer() complete: ${formatBytes(bytes.byteLength)} read in ${formatDuration(performance.now() - readStart)}`);
         setProgress(40, 'Validating SumanImg', 'Checking format and integrity data');
+        nerdLog('isSumanImg(): checking SMIG magic bytes');
         if (!isSumanImg(bytes)) throw new Error('This is not a valid SumanImg file.');
+        nerdLog('Magic bytes valid. Calling decodeSumanImg()');
+        const decodeStart = performance.now();
         const image = await decodeSumanImg(bytes);
+        nerdLog(`decodeSumanImg() complete in ${formatDuration(performance.now() - decodeStart)} — ${image.width}×${image.height}, ${formatBytes(image.rgba.byteLength)} RGBA`);
         setProgress(100, 'Complete', 'SumanImg decoded successfully');
         showPixels(image, file.size);
         setStatus(`Loaded ${file.name} successfully.`);
+        nerdDone();
         setTimeout(hideProgress, 500);
       } catch (error) {
+        nerdLog(`ERROR: ${error?.stack || error?.message || error}`, 'ERROR');
+        nerdDone('ERROR');
         resetViewer();
         setStatus(error?.message || 'Unable to decode this SumanImg file.', true);
       }
@@ -258,64 +380,111 @@ The SumanImg v1 format and browser conversion API remain unchanged.
 
     async function convertImage(file) {
       if (!file) return;
+      startNerdMonitor(file);
+      nerdLog('ACTION: starting image → SumanImg conversion');
       setProgress(8, 'Preparing', file.name);
       setStatus(`Preparing ${file.name}…`);
       chooseButton.disabled = true;
       convertButton.disabled = true;
       try {
         const url = URL.createObjectURL(file);
+        nerdLog('URL.createObjectURL(): local blob URL created');
         const image = new Image();
         image.decoding = 'async';
         image.src = url;
+        nerdLog('Image.decode(): waiting for browser image decoder');
+        const decodeStart = performance.now();
         await image.decode();
+        nerdLog(`Image.decode() complete in ${formatDuration(performance.now() - decodeStart)} — ${image.width}×${image.height}px`);
         URL.revokeObjectURL(url);
+        nerdLog('URL.revokeObjectURL(): source URL released');
 
         if (image.width > 16384 || image.height > 16384) throw new Error('Image exceeds the SumanImg v1 dimension limit.');
         setProgress(22, 'Decoding image', `${image.width} × ${image.height}px`);
 
+        nerdLog('Canvas allocation: creating temporary RGBA canvas');
         const temp = document.createElement('canvas');
         temp.width = image.width;
         temp.height = image.height;
         const tempContext = temp.getContext('2d', { willReadFrequently: true });
+        nerdLog('Canvas drawImage(): rasterizing decoded image into RGBA pixels');
+        const drawStart = performance.now();
         tempContext.drawImage(image, 0, 0);
+        nerdLog(`drawImage() complete in ${formatDuration(performance.now() - drawStart)}`);
+        nerdLog('Canvas getImageData(): copying raw RGBA pixel buffer');
+        const pixelsStart = performance.now();
         const pixels = tempContext.getImageData(0, 0, image.width, image.height).data;
+        nerdLog(`getImageData() complete in ${formatDuration(performance.now() - pixelsStart)} — ${formatBytes(pixels.byteLength)} RGBA`);
 
         setProgress(40, 'Reading pixels', `${formatBytes(pixels.byteLength)} RGBA data`);
         setStatus(`Converting ${file.name}…`);
+        nerdLog('UI checkpoint: 40% reached; next operation is SumanImg encoding');
         await new Promise(requestAnimationFrame);
+        nerdLog('requestAnimationFrame(): UI yielded before encoder starts');
 
         const metadataValue = { sourceName: file.name, createdBy: 'SumanImg Studio', version: 1 };
+        nerdLog(`Metadata prepared: ${JSON.stringify(metadataValue)}`);
+        nerdLog('encodeSumanImg(): entering encoder — CRC-32 + DEFLATE + header assembly');
+        const encodeStart = performance.now();
         const buffer = await encodeSumanImg({
           width: image.width,
           height: image.height,
           rgba: pixels,
           metadata: metadataValue,
-          onProgress: ({ percent, stage, detail }) => setProgress(percent, stage === 'compressing' ? 'Compressing pixels' : stage, detail)
+          onProgress: ({ percent, stage, detail }) => {
+            nerdLog(`ENCODER: ${percent}% ${stage} — ${detail}`);
+            setProgress(percent, stage === 'compressing' ? 'Compressing pixels' : stage, detail);
+          }
         });
+        nerdLog(`encodeSumanImg() returned in ${formatDuration(performance.now() - encodeStart)} — output ${formatBytes(buffer.byteLength)}`, 'SUCCESS');
 
         setProgress(94, 'Downloading', 'Preparing the SumanImg file');
+        nerdLog('Blob(): wrapping encoded ArrayBuffer as image/x-sumanimg');
         const blob = new Blob([buffer], { type: 'image/x-sumanimg' });
+        nerdLog(`Blob created: ${formatBytes(blob.size)}`);
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = `${file.name.replace(/\.[^.]+$/, '')}.sumanImg`;
+        nerdLog(`Download: ${link.download}`);
         link.click();
         setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+        nerdLog('Download triggered; temporary download URL scheduled for release');
 
         showPixels({ width: image.width, height: image.height, rgba: pixels, metadata: metadataValue }, buffer.byteLength);
         setProgress(100, 'Complete', `${formatBytes(buffer.byteLength)} SumanImg created`);
         setStatus(`Created ${link.download} successfully.`);
+        nerdDone();
         setTimeout(hideProgress, 900);
       } catch (error) {
+        nerdLog(`ERROR: ${error?.stack || error?.message || error}`, 'ERROR');
         setProgress(0, 'Conversion failed', error?.message || 'Unable to convert this image.');
         progressBar.style.width = '0%';
         setStatus(error?.message || 'Unable to convert this image.', true);
+        nerdDone('ERROR');
       } finally {
         chooseButton.disabled = false;
         convertButton.disabled = false;
       }
     }
 
+    nerdToggle.addEventListener('click', () => {
+      const visible = nerdCard.classList.toggle('visible');
+      nerdToggle.setAttribute('aria-expanded', String(visible));
+      nerdToggleLabel.textContent = visible ? 'Hide' : 'Show';
+    });
+
+    nerdCopy.addEventListener('click', async () => {
+      const text = [...nerdLog.querySelectorAll('.nerd-line')].map(line => line.textContent.trim()).join('\n');
+      try {
+        await navigator.clipboard.writeText(text || 'No diagnostic events recorded.');
+        nerdLog('Diagnostic log copied to clipboard', 'SUCCESS');
+      } catch {
+        nerdLog('Clipboard access was denied by the browser', 'WARN');
+      }
+    });
+
+    nerdClear.addEventListener('click', () => { nerdLog.innerHTML = ''; nerdLog('Diagnostic log cleared'); });
     chooseButton.addEventListener('click', () => fileInput.click());
     convertButton.addEventListener('click', () => imageInput.click());
     fileInput.addEventListener('change', () => openSumanImg(fileInput.files[0]));
