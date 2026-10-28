@@ -70,34 +70,93 @@ function assertDimension(width, height) {
  * }
  */
 
+/*
+ * Previous diagnostic streamBytes implementation kept commented out before the
+ * production backpressure fix. The diagnostic proved that the readable side must
+ * be drained while writes are in progress in Chrome's CompressionStream.
+ *
+ * async function streamBytes(bytes, format, mode, onProgress = null) {
+ *   if (typeof CompressionStream === "undefined" || typeof DecompressionStream === "undefined") {
+ *     throw new Error("SumanImg: this browser does not provide the CompressionStream API");
+ *   }
+ *   const Stream = mode === "compress" ? CompressionStream : DecompressionStream;
+ *   reportLog(onProgress, `CompressionStream: creating ${format} stream`);
+ *   const stream = new Stream(format);
+ *   reportLog(onProgress, "CompressionStream: stream created");
+ *   const writer = stream.writable.getWriter();
+ *   reportLog(onProgress, "CompressionStream: writer created");
+ *   reportLog(onProgress, `CompressionStream: writer.write() START — ${bytes.byteLength} input bytes`);
+ *   await writer.write(bytes);
+ *   await writer.close();
+ *   const output = new Uint8Array(await new Response(stream.readable).arrayBuffer());
+ *   return output;
+ * }
+ */
+
 async function streamBytes(bytes, format, mode, onProgress = null) {
   if (typeof CompressionStream === "undefined" || typeof DecompressionStream === "undefined") {
     throw new Error("SumanImg: this browser does not provide the CompressionStream API");
   }
 
   const Stream = mode === "compress" ? CompressionStream : DecompressionStream;
-  reportLog(onProgress, `CompressionStream: creating ${format} stream`);
   const stream = new Stream(format);
-  reportLog(onProgress, "CompressionStream: stream created");
-
-  reportLog(onProgress, "CompressionStream: creating writable writer");
+  const reader = stream.readable.getReader();
   const writer = stream.writable.getWriter();
-  reportLog(onProgress, "CompressionStream: writer created");
+  const outputChunks = [];
+  let outputBytes = 0;
 
-  reportLog(onProgress, `CompressionStream: writer.write() START — ${bytes.byteLength} input bytes`);
+  reportLog(onProgress, `CompressionStream: ${mode} ${format} stream created`);
+  reportLog(onProgress, "CompressionStream: starting concurrent readable drain");
+
+  const drainStart = performance.now();
+  const drain = (async () => {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      outputChunks.push(value);
+      outputBytes += value.byteLength;
+    }
+  })();
+
+  const chunkSize = 64 * 1024;
   const writeStart = performance.now();
-  await writer.write(bytes);
-  reportLog(onProgress, `CompressionStream: writer.write() END — ${((performance.now() - writeStart) / 1000).toFixed(3)}s`);
+  reportLog(onProgress, `CompressionStream: writing ${bytes.byteLength} input bytes in 64KB chunks`);
 
-  reportLog(onProgress, "CompressionStream: writer.close() START");
-  const closeStart = performance.now();
-  await writer.close();
-  reportLog(onProgress, `CompressionStream: writer.close() END — ${((performance.now() - closeStart) / 1000).toFixed(3)}s`);
+  try {
+    for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+      const end = Math.min(offset + chunkSize, bytes.byteLength);
+      await writer.write(bytes.subarray(offset, end));
+    }
 
-  reportLog(onProgress, "CompressionStream: reading readable output START");
-  const readStart = performance.now();
-  const output = new Uint8Array(await new Response(stream.readable).arrayBuffer());
-  reportLog(onProgress, `CompressionStream: reading readable output END — ${((performance.now() - readStart) / 1000).toFixed(3)}s, ${output.byteLength} output bytes`);
+    reportLog(onProgress, `CompressionStream: all input chunks written in ${((performance.now() - writeStart) / 1000).toFixed(3)}s`);
+    const closeStart = performance.now();
+    await writer.close();
+    reportLog(onProgress, `CompressionStream: writer.close() complete in ${((performance.now() - closeStart) / 1000).toFixed(3)}s`);
+
+    await drain;
+    reportLog(onProgress, `CompressionStream: readable drain complete in ${((performance.now() - drainStart) / 1000).toFixed(3)}s — ${outputBytes} output bytes`);
+  } catch (error) {
+    try {
+      await writer.abort(error);
+    } catch {
+      // Preserve the original stream error.
+    }
+    try {
+      await reader.cancel(error);
+    } catch {
+      // Preserve the original stream error.
+    }
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+
+  const output = new Uint8Array(outputBytes);
+  let outputOffset = 0;
+  for (const chunk of outputChunks) {
+    output.set(chunk, outputOffset);
+    outputOffset += chunk.byteLength;
+  }
   return output;
 }
 
@@ -225,7 +284,7 @@ async function runCompressionDiagnostics(bytes, onLog = null) {
       while (true) {
         const chunk = await reader.read();
         if (chunk.done) break;
-        outputBytes += chunk.value.byteLength;
+        outputBytes += chunk.byteLength;
       }
     })();
     const writer = stream.writable.getWriter();
@@ -268,11 +327,34 @@ async function runCompressionDiagnostics(bytes, onLog = null) {
  * }
  */
 
+/*
+ * Previous diagnostic-enabled production path kept commented out before restoring
+ * normal production compression. Deep diagnostics remain available above, but are
+ * intentionally not executed during every conversion.
+ *
+ * async function compressDeflate(bytes, onLog = null) {
+ *   try {
+ *     reportLog(onLog, "CompressionStream: starting deflate-raw");
+ *     await runCompressionDiagnostics(bytes, onLog);
+ *     reportLog(onLog, "CompressionStream: deep diagnostics finished; starting production compression");
+ *     const result = await streamBytes(bytes, "deflate-raw", "compress", onLog);
+ *     reportLog(onLog, `CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
+ *     return result;
+ *   } catch (error) {
+ *     if (error instanceof TypeError) {
+ *       reportLog(onLog, "CompressionStream: deflate-raw unsupported; falling back to deflate");
+ *       const result = await streamBytes(bytes, "deflate", "compress", onLog);
+ *       reportLog(onLog, `CompressionStream: deflate fallback returned ${result.byteLength} bytes`);
+ *       return result;
+ *     }
+ *     throw error;
+ *   }
+ * }
+ */
+
 async function compressDeflate(bytes, onLog = null) {
   try {
     reportLog(onLog, "CompressionStream: starting deflate-raw");
-    await runCompressionDiagnostics(bytes, onLog);
-    reportLog(onLog, "CompressionStream: deep diagnostics finished; starting production compression");
     const result = await streamBytes(bytes, "deflate-raw", "compress", onLog);
     reportLog(onLog, `CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
     return result;
