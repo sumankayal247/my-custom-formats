@@ -171,8 +171,32 @@ function reportProgress(onProgress, percent, stage, detail = "") {
   if (typeof onProgress === "function") onProgress({ percent, stage, detail });
 }
 
+/*
+ * Original reportLog implementation kept commented out before adding a Nerd View fallback.
+ *
+ * function reportLog(onLog, message) {
+ *   if (typeof onLog === "function") onLog(message);
+ * }
+ */
+
 function reportLog(onLog, message) {
-  if (typeof onLog === "function") onLog(message);
+  if (typeof onLog === "function") {
+    onLog(message);
+    return;
+  }
+
+  // Keep encoder diagnostics visible even when the caller has not passed an onLog callback.
+  if (typeof document !== "undefined") {
+    const logElement = document.getElementById("nerdLog");
+    if (logElement) {
+      const line = document.createElement("div");
+      line.className = "nerd-line";
+      line.innerHTML = `<span class="nerd-time">+${(performance.now() / 1000).toFixed(3)}s</span><span class="nerd-kind">ENCODER</span><span class="nerd-message"></span>`;
+      line.querySelector(".nerd-message").textContent = message;
+      logElement.appendChild(line);
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+  }
 }
 
 /*
@@ -244,9 +268,9 @@ export async function encodeSumanImg({ width, height, rgba, metadata = null, onP
   const view = new DataView(header);
   SUMANIMG_MAGIC.forEach((byte, index) => view.setUint8(index, byte));
   view.setUint8(4, SUMANIMG_VERSION);
-  view.setUint8(5, 0); // flags
-  view.setUint8(6, 1); // RGBA8
-  view.setUint8(7, 1); // DEFLATE
+  view.setUint8(5, 0);
+  view.setUint8(6, 1);
+  view.setUint8(7, 1);
   view.setUint32(8, width, true);
   view.setUint32(12, height, true);
   view.setUint32(16, compressed.length, true);
