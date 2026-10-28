@@ -66,12 +66,18 @@ async function streamBytes(bytes, format, mode) {
   return new Uint8Array(await new Response(stream.readable).arrayBuffer());
 }
 
-async function compressDeflate(bytes) {
+async function compressDeflate(bytes, onLog = null) {
   try {
-    return await streamBytes(bytes, "deflate-raw", "compress");
+    if (typeof onLog === "function") onLog("CompressionStream: starting deflate-raw");
+    const result = await streamBytes(bytes, "deflate-raw", "compress");
+    if (typeof onLog === "function") onLog(`CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
+    return result;
   } catch (error) {
     if (error instanceof TypeError) {
-      return streamBytes(bytes, "deflate", "compress");
+      if (typeof onLog === "function") onLog("CompressionStream: deflate-raw unsupported; falling back to deflate");
+      const result = await streamBytes(bytes, "deflate", "compress");
+      if (typeof onLog === "function") onLog(`CompressionStream: deflate fallback returned ${result.byteLength} bytes`);
+      return result;
     }
     throw error;
   }
@@ -109,7 +115,47 @@ function reportProgress(onProgress, percent, stage, detail = "") {
   if (typeof onProgress === "function") onProgress({ percent, stage, detail });
 }
 
-export async function encodeSumanImg({ width, height, rgba, metadata = null, onProgress = null }) {
+function reportLog(onLog, message) {
+  if (typeof onLog === "function") onLog(message);
+}
+
+/*
+ * Original encoder kept commented out before diagnostic instrumentation.
+ *
+ * export async function encodeSumanImg({ width, height, rgba, metadata = null, onProgress = null }) {
+ *   const expectedLength = assertDimension(width, height);
+ *   const pixels = rgba instanceof Uint8Array ? rgba : new Uint8Array(rgba);
+ *   if (pixels.length !== expectedLength) {
+ *     throw new Error(`SumanImg: expected ${expectedLength} RGBA bytes, received ${pixels.length}`);
+ *   }
+ *   reportProgress(onProgress, 40, "preparing", "Validating image data");
+ *   const meta = metadataBytes(metadata);
+ *   if (meta.length > 0xffffffff) throw new Error("SumanImg: metadata is too large");
+ *   const pixelCrc = crc32(pixels);
+ *   reportProgress(onProgress, 50, "compressing", "Compressing RGBA pixels");
+ *   const compressed = await compressDeflate(pixels);
+ *   reportProgress(onProgress, 90, "finalizing", "Building SumanImg file");
+ *   if (compressed.length > 0xffffffff) throw new Error("SumanImg: payload is too large");
+ *   const header = new ArrayBuffer(SUMANIMG_HEADER_SIZE);
+ *   const view = new DataView(header);
+ *   SUMANIMG_MAGIC.forEach((byte, index) => view.setUint8(index, byte));
+ *   view.setUint8(4, SUMANIMG_VERSION);
+ *   view.setUint8(5, 0);
+ *   view.setUint8(6, 1);
+ *   view.setUint8(7, 1);
+ *   view.setUint32(8, width, true);
+ *   view.setUint32(12, height, true);
+ *   view.setUint32(16, compressed.length, true);
+ *   view.setUint32(20, meta.length, true);
+ *   view.setUint32(24, pixelCrc, true);
+ *   view.setUint32(28, 0, true);
+ *   const result = concatBytes(new Uint8Array(header), meta, compressed).buffer;
+ *   reportProgress(onProgress, 100, "complete", "Conversion complete");
+ *   return result;
+ * }
+ */
+
+export async function encodeSumanImg({ width, height, rgba, metadata = null, onProgress = null, onLog = null }) {
   const expectedLength = assertDimension(width, height);
   const pixels = rgba instanceof Uint8Array ? rgba : new Uint8Array(rgba);
   if (pixels.length !== expectedLength) {
@@ -117,15 +163,26 @@ export async function encodeSumanImg({ width, height, rgba, metadata = null, onP
   }
 
   reportProgress(onProgress, 40, "preparing", "Validating image data");
+  reportLog(onLog, `Encoder validation passed: ${width}×${height}, ${pixels.byteLength} RGBA bytes`);
 
   const meta = metadataBytes(metadata);
   if (meta.length > 0xffffffff) throw new Error("SumanImg: metadata is too large");
+  reportLog(onLog, `Metadata encoded: ${meta.byteLength} bytes`);
 
+  reportLog(onLog, "CRC-32: starting synchronous pixel integrity calculation");
+  const crcStart = performance.now();
   const pixelCrc = crc32(pixels);
+  reportLog(onLog, `CRC-32: complete in ${((performance.now() - crcStart) / 1000).toFixed(3)}s (0x${pixelCrc.toString(16).padStart(8, "0")})`);
+
   reportProgress(onProgress, 50, "compressing", "Compressing RGBA pixels");
-  const compressed = await compressDeflate(pixels);
+  reportLog(onLog, `DEFLATE: starting compression of ${pixels.byteLength} RGBA bytes`);
+  const compressionStart = performance.now();
+  const compressed = await compressDeflate(pixels, onLog);
+  reportLog(onLog, `DEFLATE: total compression phase ${((performance.now() - compressionStart) / 1000).toFixed(3)}s`);
+
   reportProgress(onProgress, 90, "finalizing", "Building SumanImg file");
   if (compressed.length > 0xffffffff) throw new Error("SumanImg: payload is too large");
+  reportLog(onLog, `Header: building 32-byte SumanImg v1 header; payload=${compressed.byteLength}, metadata=${meta.byteLength}`);
 
   const header = new ArrayBuffer(SUMANIMG_HEADER_SIZE);
   const view = new DataView(header);
@@ -141,7 +198,9 @@ export async function encodeSumanImg({ width, height, rgba, metadata = null, onP
   view.setUint32(24, pixelCrc, true);
   view.setUint32(28, 0, true);
 
+  reportLog(onLog, "Payload assembly: concatenating header + metadata + compressed pixels");
   const result = concatBytes(new Uint8Array(header), meta, compressed).buffer;
+  reportLog(onLog, `Encoder output ready: ${result.byteLength} total bytes`);
   reportProgress(onProgress, 100, "complete", "Conversion complete");
   return result;
 }
