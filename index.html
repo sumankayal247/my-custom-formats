@@ -1,24 +1,13 @@
 <!--
-Original static UI kept here before replacement, per project change history:
-
-<main class="shell">
-  <div class="brand">XIMG Viewer</div>
-  <div class="tag">Custom image format</div>
-  <section class="panel">
-    <h1>Viewer ready</h1>
-    <p>This is the initial static interface for the XIMG web viewer.<br>Image decoding will be added with the XIMG specification.</p>
-  </section>
-  <div class="status">No image loaded</div>
-  <div class="footer">XIMG — an experimental web-compatible image format</div>
-</main>
+Original XIMG viewer kept commented out before SumanImg replacement.
 -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Local browser viewer and converter for the XIMG custom image format.">
-  <title>XIMG Viewer</title>
+  <meta name="description" content="Local browser viewer and converter for the SumanImg custom image format.">
+  <title>SumanImg Viewer</title>
   <style>
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f5f7;color:#17191c;min-height:100vh;display:grid;place-items:center}
@@ -44,18 +33,18 @@ Original static UI kept here before replacement, per project change history:
 </head>
 <body>
   <main class="shell">
-    <div class="brand">XIMG Viewer</div>
-    <div class="tag">XIMG v1 · local decoding</div>
+    <div class="brand">SumanImg Viewer</div>
+    <div class="tag">SumanImg v1 · local decoding</div>
 
     <section class="dropzone" id="dropzone">
-      <h1>Open an XIMG file</h1>
-      <p>Drop a <strong>.ximg</strong> file here, or choose one from your device.<br>The file is decoded locally in your browser.</p>
+      <h1>Open a SumanImg file</h1>
+      <p>Drop a <strong>.sumanImg</strong> file here, or choose one from your device.<br>The file is decoded locally in your browser.</p>
       <div class="actions">
-        <button id="chooseButton" type="button">Choose XIMG</button>
-        <button id="convertButton" class="secondary" type="button">Convert image to XIMG</button>
+        <button id="chooseButton" type="button">Choose SumanImg</button>
+        <button id="convertButton" class="secondary" type="button">Convert image to SumanImg</button>
         <button id="clearButton" class="secondary" type="button" hidden>Clear</button>
       </div>
-      <input id="fileInput" type="file" accept=".ximg,application/x-ximg">
+      <input id="fileInput" type="file" accept=".sumanImg,image/x-sumanimg">
       <input id="imageInput" type="file" accept="image/*">
     </section>
 
@@ -68,11 +57,11 @@ Original static UI kept here before replacement, per project change history:
     </section>
 
     <div class="status" id="status">No image loaded</div>
-    <div class="footer">XIMG — an experimental web-compatible image format</div>
+    <div class="footer">SumanImg — an experimental web-compatible image format</div>
   </main>
 
   <script type="module">
-    import { decodeXIMG, encodeXIMG, isXIMG } from './ximg.js';
+    import { decodeSumanImg, encodeSumanImg, isSumanImg } from './ximg.js';
 
     const fileInput = document.getElementById('fileInput');
     const imageInput = document.getElementById('imageInput');
@@ -113,18 +102,18 @@ Original static UI kept here before replacement, per project change history:
       setStatus('No image loaded');
     }
 
-    async function openXIMG(file) {
+    async function openSumanImg(file) {
       if (!file) return;
       setStatus(`Reading ${file.name}…`);
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        if (!isXIMG(bytes)) throw new Error('This is not a valid XIMG file.');
-        const image = await decodeXIMG(bytes);
+        if (!isSumanImg(bytes)) throw new Error('This is not a valid SumanImg file.');
+        const image = await decodeSumanImg(bytes);
         showPixels(image);
         setStatus(`Loaded ${file.name} successfully.`);
       } catch (error) {
         resetViewer();
-        setStatus(error?.message || 'Unable to decode this XIMG file.', true);
+        setStatus(error?.message || 'Unable to decode this SumanImg file.', true);
       }
     }
 
@@ -139,29 +128,29 @@ Original static UI kept here before replacement, per project change history:
         await image.decode();
         URL.revokeObjectURL(url);
 
-        if (image.width > 16384 || image.height > 16384) throw new Error('Image exceeds the XIMG v1 dimension limit.');
+        if (image.width > 16384 || image.height > 16384) throw new Error('Image exceeds the SumanImg v1 dimension limit.');
         const temp = document.createElement('canvas');
         temp.width = image.width;
         temp.height = image.height;
         const tempContext = temp.getContext('2d', { willReadFrequently: true });
         tempContext.drawImage(image, 0, 0);
         const pixels = tempContext.getImageData(0, 0, image.width, image.height).data;
-        const buffer = await encodeXIMG({
+        const buffer = await encodeSumanImg({
           width: image.width,
           height: image.height,
           rgba: pixels,
-          metadata: { sourceName: file.name, createdBy: 'XIMG Viewer', version: 1 }
+          metadata: { sourceName: file.name, createdBy: 'SumanImg Viewer', version: 1 }
         });
 
-        const blob = new Blob([buffer], { type: 'image/x-ximg' });
+        const blob = new Blob([buffer], { type: 'image/x-sumanimg' });
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = `${file.name.replace(/\.[^.]+$/, '')}.ximg`;
+        link.download = `${file.name.replace(/\.[^.]+$/, '')}.sumanImg`;
         link.click();
         URL.revokeObjectURL(downloadUrl);
 
-        const decoded = await decodeXIMG(new Uint8Array(buffer));
+        const decoded = await decodeSumanImg(new Uint8Array(buffer));
         showPixels(decoded);
         setStatus(`Created ${link.download} successfully.`);
       } catch (error) {
@@ -171,7 +160,7 @@ Original static UI kept here before replacement, per project change history:
 
     chooseButton.addEventListener('click', () => fileInput.click());
     convertButton.addEventListener('click', () => imageInput.click());
-    fileInput.addEventListener('change', () => openXIMG(fileInput.files[0]));
+    fileInput.addEventListener('change', () => openSumanImg(fileInput.files[0]));
     imageInput.addEventListener('change', () => convertImage(imageInput.files[0]));
     clearButton.addEventListener('click', () => {
       fileInput.value = '';
@@ -194,9 +183,9 @@ Original static UI kept here before replacement, per project change history:
     dropzone.addEventListener('drop', event => {
       const file = event.dataTransfer.files[0];
       if (!file) return;
-      if (file.name.toLowerCase().endsWith('.ximg')) openXIMG(file);
+      if (file.name.toLowerCase().endsWith('.sumanimg')) openSumanImg(file);
       else if (file.type.startsWith('image/')) convertImage(file);
-      else setStatus('Drop an XIMG or regular image file.', true);
+      else setStatus('Drop a SumanImg or regular image file.', true);
     });
   </script>
 </body>
