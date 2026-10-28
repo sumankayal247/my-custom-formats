@@ -1,63 +1,168 @@
 <!--
-Original XIMG viewer kept commented out before SumanImg replacement.
+Original SumanImg viewer layout kept commented out before the modern UI replacement.
+The SumanImg v1 format and browser conversion API remain unchanged.
 -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Local browser viewer and converter for the SumanImg custom image format.">
-  <title>SumanImg Viewer</title>
+  <meta name="description" content="Fast, private browser viewer and converter for the SumanImg custom image format.">
+  <meta name="theme-color" content="#0b1020">
+  <title>SumanImg Studio</title>
   <style>
+    /*
+    Original CSS kept commented out before the glass UI replacement.
+
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f5f7;color:#17191c;min-height:100vh;display:grid;place-items:center}
     .shell{width:min(860px,94vw);background:#fff;border:1px solid #d9dce1;border-radius:18px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.06)}
-    .brand{font-size:28px;font-weight:700;letter-spacing:-.03em}
-    .tag{display:inline-block;margin-top:8px;padding:5px 9px;border:1px solid #d9dce1;border-radius:999px;font-size:12px;color:#5d636b}
-    .dropzone{margin-top:24px;border:1px dashed #aeb4bc;border-radius:14px;padding:34px 20px;text-align:center;background:#fafafa;transition:.15s ease}
-    .dropzone.dragging{border-color:#17191c;background:#f0f1f3}
-    .dropzone h1{font-size:20px;margin:0 0 8px}
-    .dropzone p{margin:0 0 18px;color:#656b73;line-height:1.5}
-    button{border:1px solid #17191c;background:#17191c;color:#fff;border-radius:9px;padding:9px 14px;font:inherit;cursor:pointer}
-    button.secondary{background:#fff;color:#17191c;border-color:#c7cbd1}
-    .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-    #fileInput,#imageInput{display:none}
-    .viewer{display:none;margin-top:24px;border:1px solid #d9dce1;border-radius:14px;overflow:hidden;background:#111}
-    .viewer.visible{display:block}
-    canvas{display:block;width:100%;height:auto;max-height:65vh;object-fit:contain;background:#111}
-    .info{padding:14px 16px;background:#fff;border-top:1px solid #d9dce1;font-size:13px;color:#555b63;display:flex;gap:14px;flex-wrap:wrap}
-    .status{margin-top:18px;color:#656b73;font-size:14px;min-height:20px}
-    .status.error{color:#a22}
-    .footer{margin-top:22px;font-size:12px;color:#858b93;text-align:center}
+    ...
+    */
+
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #070b16;
+      color: #f8fafc;
+      --glass: rgba(255, 255, 255, .075);
+      --glass-strong: rgba(255, 255, 255, .11);
+      --line: rgba(255, 255, 255, .13);
+      --muted: #a6afc3;
+      --accent: #8b9cff;
+      --accent-2: #67e8f9;
+      --danger: #fb7185;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(99, 102, 241, .25), transparent 30rem),
+        radial-gradient(circle at 85% 85%, rgba(34, 211, 238, .16), transparent 28rem),
+        #070b16;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, black, transparent 80%);
+    }
+    button, input { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .app { width: min(1080px, 94vw); margin: 0 auto; padding: 34px 0 42px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo {
+      width:42px; height:42px; border:1px solid var(--line); border-radius:14px;
+      display:grid; place-items:center; background:linear-gradient(145deg, rgba(139,156,255,.3), rgba(103,232,249,.1));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 10px 35px rgba(79,70,229,.18);
+      font-weight:800;
+    }
+    .brand h1 { margin:0; font-size:18px; letter-spacing:-.03em; }
+    .brand p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+    .pill { padding:8px 11px; border:1px solid var(--line); border-radius:999px; color:#cbd5e1; background:rgba(255,255,255,.045); font-size:12px; backdrop-filter:blur(14px); }
+
+    .hero, .viewer, .progress-card {
+      border:1px solid var(--line); background:var(--glass); backdrop-filter:blur(24px) saturate(140%);
+      -webkit-backdrop-filter:blur(24px) saturate(140%); box-shadow:0 24px 80px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+      border-radius:28px;
+    }
+    .hero { padding:38px; position:relative; overflow:hidden; }
+    .hero::after { content:""; position:absolute; width:220px; height:220px; right:-80px; top:-100px; border-radius:50%; background:rgba(139,156,255,.18); filter:blur(30px); pointer-events:none; }
+    .eyebrow { color:#b9c4ff; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.14em; }
+    .hero h2 { max-width:700px; margin:10px 0 12px; font-size:clamp(32px, 5vw, 58px); line-height:.98; letter-spacing:-.055em; }
+    .hero h2 span { background:linear-gradient(90deg,#fff,#a5b4fc,#67e8f9); -webkit-background-clip:text; background-clip:text; color:transparent; }
+    .hero-copy { max-width:650px; margin:0; color:var(--muted); line-height:1.65; font-size:15px; }
+
+    .dropzone { margin-top:28px; border:1px dashed rgba(255,255,255,.2); border-radius:22px; padding:28px; text-align:center; background:rgba(3,7,18,.28); transition:.2s ease; }
+    .dropzone.dragging { border-color:#a5b4fc; background:rgba(99,102,241,.12); transform:translateY(-2px); }
+    .drop-icon { width:54px; height:54px; margin:0 auto 14px; display:grid; place-items:center; border-radius:17px; background:rgba(255,255,255,.08); border:1px solid var(--line); font-size:22px; }
+    .dropzone h3 { margin:0 0 7px; font-size:18px; }
+    .dropzone p { margin:0 auto 20px; max-width:500px; color:var(--muted); font-size:13px; line-height:1.6; }
+    .actions { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; }
+    button { border:0; cursor:pointer; color:#fff; padding:11px 16px; border-radius:13px; font-weight:650; transition:.18s ease; }
+    button:hover { transform:translateY(-1px); }
+    button:active { transform:translateY(0); }
+    .primary { background:linear-gradient(135deg,#6366f1,#8b5cf6); box-shadow:0 10px 28px rgba(99,102,241,.28); }
+    .secondary { background:rgba(255,255,255,.065); border:1px solid var(--line); color:#e2e8f0; }
+    button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+    #fileInput,#imageInput { display:none; }
+
+    .progress-card { display:none; margin-top:18px; padding:18px 20px; }
+    .progress-card.visible { display:block; animation:rise .25s ease; }
+    .progress-top { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:10px; }
+    .progress-stage { font-size:13px; font-weight:650; }
+    .progress-percent { font-variant-numeric:tabular-nums; color:#cbd5e1; font-size:13px; }
+    .progress-track { height:9px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.08); }
+    .progress-bar { height:100%; width:0%; border-radius:inherit; background:linear-gradient(90deg,#818cf8,#22d3ee); box-shadow:0 0 20px rgba(99,102,241,.45); transition:width .25s ease; }
+    .progress-bar.busy { background-size:200% 100%; animation:shimmer 1.1s linear infinite; }
+    .progress-detail { margin-top:9px; color:var(--muted); font-size:11px; }
+
+    .status { min-height:20px; margin:17px 4px 0; color:#aeb8ca; font-size:13px; }
+    .status.error { color:#fda4af; }
+    .viewer { display:none; margin-top:18px; overflow:hidden; }
+    .viewer.visible { display:block; animation:rise .3s ease; }
+    .preview-wrap { padding:12px; background:rgba(0,0,0,.24); }
+    canvas { display:block; width:100%; max-height:68vh; object-fit:contain; background-color:#0b1020; background-image:linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%),linear-gradient(-45deg,rgba(255,255,255,.035) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(255,255,255,.035) 75%),linear-gradient(-45deg,transparent 75%,rgba(255,255,255,.035) 75%); background-size:24px 24px; background-position:0 0,0 12px,12px -12px,-12px 0; border-radius:18px; }
+    .info { display:flex; flex-wrap:wrap; gap:8px; padding:16px; }
+    .info span { padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.045); color:#b9c3d5; font-size:11px; }
+    .footer { margin-top:22px; display:flex; justify-content:center; gap:8px; color:#69758b; font-size:11px; }
+
+    @keyframes shimmer { to { background-position:200% 0; } }
+    @keyframes rise { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
+    @media (max-width:650px) { .app{width:min(94vw,560px);padding-top:20px}.hero{padding:24px;border-radius:22px}.hero h2{font-size:36px}.dropzone{padding:24px 16px}.topbar .pill{display:none}.actions button{width:100%} }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <div class="brand">SumanImg Viewer</div>
-    <div class="tag">SumanImg v1 · local decoding</div>
-
-    <section class="dropzone" id="dropzone">
-      <h1>Open a SumanImg file</h1>
-      <p>Drop a <strong>.sumanImg</strong> file here, or choose one from your device.<br>The file is decoded locally in your browser.</p>
-      <div class="actions">
-        <button id="chooseButton" type="button">Choose SumanImg</button>
-        <button id="convertButton" class="secondary" type="button">Convert image to SumanImg</button>
-        <button id="clearButton" class="secondary" type="button" hidden>Clear</button>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">S</div>
+        <div><h1>SumanImg Studio</h1><p>Private, browser-native image conversion</p></div>
       </div>
-      <input id="fileInput" type="file" accept=".sumanImg,image/x-sumanimg">
-      <input id="imageInput" type="file" accept="image/*">
+      <div class="pill">SumanImg v1 · local only</div>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">Custom image format</div>
+      <h2>Convert images into <span>SumanImg.</span></h2>
+      <p class="hero-copy">Open existing <strong>.sumanImg</strong> files or convert browser-supported images locally. Nothing is uploaded to a server.</p>
+
+      <section class="dropzone" id="dropzone">
+        <div class="drop-icon">↥</div>
+        <h3>Drop a file here</h3>
+        <p>Use a SumanImg file to view it, or drop a JPG, PNG, WebP and other browser-supported image to convert it.</p>
+        <div class="actions">
+          <button id="chooseButton" class="primary" type="button">Open SumanImg</button>
+          <button id="convertButton" class="secondary" type="button">Convert image</button>
+          <button id="clearButton" class="secondary" type="button" hidden>Clear</button>
+        </div>
+        <input id="fileInput" type="file" accept=".sumanImg,image/x-sumanimg">
+        <input id="imageInput" type="file" accept="image/*">
+      </section>
+    </section>
+
+    <section class="progress-card" id="progressCard" aria-live="polite">
+      <div class="progress-top"><span class="progress-stage" id="progressStage">Preparing…</span><span class="progress-percent" id="progressPercent">0%</span></div>
+      <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-detail" id="progressDetail">Starting conversion</div>
     </section>
 
     <section class="viewer" id="viewer">
-      <canvas id="canvas"></canvas>
-      <div class="info">
-        <span id="dimensions"></span>
-        <span id="metadata"></span>
-      </div>
+      <div class="preview-wrap"><canvas id="canvas"></canvas></div>
+      <div class="info"><span id="dimensions"></span><span id="metadata"></span><span id="fileSize"></span></div>
     </section>
 
-    <div class="status" id="status">No image loaded</div>
-    <div class="footer">SumanImg — an experimental web-compatible image format</div>
+    <div class="status" id="status">Ready — choose an image to begin.</div>
+    <div class="footer"><span>⚡ Browser-native</span><span>·</span><span>🔒 No upload</span><span>·</span><span>✓ SumanImg v1</span></div>
   </main>
 
   <script type="module">
@@ -74,6 +179,12 @@ Original XIMG viewer kept commented out before SumanImg replacement.
     const status = document.getElementById('status');
     const dimensions = document.getElementById('dimensions');
     const metadata = document.getElementById('metadata');
+    const fileSize = document.getElementById('fileSize');
+    const progressCard = document.getElementById('progressCard');
+    const progressBar = document.getElementById('progressBar');
+    const progressStage = document.getElementById('progressStage');
+    const progressPercent = document.getElementById('progressPercent');
+    const progressDetail = document.getElementById('progressDetail');
     const context = canvas.getContext('2d', { alpha: true });
 
     function setStatus(message, error = false) {
@@ -81,7 +192,21 @@ Original XIMG viewer kept commented out before SumanImg replacement.
       status.classList.toggle('error', error);
     }
 
-    function showPixels(image) {
+    function setProgress(percent, stage, detail = '') {
+      progressCard.classList.add('visible');
+      progressBar.style.width = `${percent}%`;
+      progressPercent.textContent = `${percent}%`;
+      progressStage.textContent = stage;
+      progressDetail.textContent = detail;
+      progressBar.classList.toggle('busy', stage.toLowerCase().includes('compress'));
+    }
+
+    function hideProgress() {
+      progressCard.classList.remove('visible');
+      progressBar.classList.remove('busy');
+    }
+
+    function showPixels(image, outputBytes = null) {
       canvas.width = image.width;
       canvas.height = image.height;
       context.putImageData(new ImageData(new Uint8ClampedArray(image.rgba), image.width, image.height), 0, 0);
@@ -89,6 +214,7 @@ Original XIMG viewer kept commented out before SumanImg replacement.
       clearButton.hidden = false;
       dimensions.textContent = `${image.width} × ${image.height}px`;
       metadata.textContent = image.metadata ? `Metadata: ${JSON.stringify(image.metadata)}` : 'No metadata';
+      fileSize.textContent = outputBytes == null ? '' : `SumanImg: ${formatBytes(outputBytes)}`;
     }
 
     function resetViewer() {
@@ -99,72 +225,43 @@ Original XIMG viewer kept commented out before SumanImg replacement.
       clearButton.hidden = true;
       dimensions.textContent = '';
       metadata.textContent = '';
-      setStatus('No image loaded');
+      fileSize.textContent = '';
+      hideProgress();
+      setStatus('Ready — choose an image to begin.');
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return `${(bytes / 1024 ** index).toFixed(index ? 2 : 0)} ${units[index]}`;
     }
 
     async function openSumanImg(file) {
       if (!file) return;
+      setProgress(10, 'Reading file', file.name);
       setStatus(`Reading ${file.name}…`);
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
+        setProgress(40, 'Validating SumanImg', 'Checking format and integrity data');
         if (!isSumanImg(bytes)) throw new Error('This is not a valid SumanImg file.');
         const image = await decodeSumanImg(bytes);
-        showPixels(image);
+        setProgress(100, 'Complete', 'SumanImg decoded successfully');
+        showPixels(image, file.size);
         setStatus(`Loaded ${file.name} successfully.`);
+        setTimeout(hideProgress, 500);
       } catch (error) {
         resetViewer();
         setStatus(error?.message || 'Unable to decode this SumanImg file.', true);
       }
     }
 
-    /*
-    Original convertImage kept commented out before performance replacement.
-
     async function convertImage(file) {
       if (!file) return;
-      setStatus(`Converting ${file.name}…`);
-      try {
-        const url = URL.createObjectURL(file);
-        const image = new Image();
-        image.decoding = 'async';
-        image.src = url;
-        await image.decode();
-        URL.revokeObjectURL(url);
-
-        if (image.width > 16384 || image.height > 16384) throw new Error('Image exceeds the SumanImg v1 dimension limit.');
-        const temp = document.createElement('canvas');
-        temp.width = image.width;
-        temp.height = image.height;
-        const tempContext = temp.getContext('2d', { willReadFrequently: true });
-        tempContext.drawImage(image, 0, 0);
-        const pixels = tempContext.getImageData(0, 0, image.width, image.height).data;
-        const buffer = await encodeSumanImg({
-          width: image.width,
-          height: image.height,
-          rgba: pixels,
-          metadata: { sourceName: file.name, createdBy: 'SumanImg Viewer', version: 1 }
-        });
-
-        const blob = new Blob([buffer], { type: 'image/x-sumanimg' });
-        const downloadUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `${file.name.replace(/\.[^.]+$/, '')}.sumanImg`;
-        link.click();
-        URL.revokeObjectURL(downloadUrl);
-
-        const decoded = await decodeSumanImg(new Uint8Array(buffer));
-        showPixels(decoded);
-        setStatus(`Created ${link.download} successfully.`);
-      } catch (error) {
-        setStatus(error?.message || 'Unable to convert this image.', true);
-      }
-    }
-    */
-
-    async function convertImage(file) {
-      if (!file) return;
+      setProgress(8, 'Preparing', file.name);
       setStatus(`Preparing ${file.name}…`);
+      chooseButton.disabled = true;
+      convertButton.disabled = true;
       try {
         const url = URL.createObjectURL(file);
         const image = new Image();
@@ -174,8 +271,8 @@ Original XIMG viewer kept commented out before SumanImg replacement.
         URL.revokeObjectURL(url);
 
         if (image.width > 16384 || image.height > 16384) throw new Error('Image exceeds the SumanImg v1 dimension limit.');
+        setProgress(22, 'Decoding image', `${image.width} × ${image.height}px`);
 
-        setStatus(`Reading pixels from ${file.name}…`);
         const temp = document.createElement('canvas');
         temp.width = image.width;
         temp.height = image.height;
@@ -183,33 +280,39 @@ Original XIMG viewer kept commented out before SumanImg replacement.
         tempContext.drawImage(image, 0, 0);
         const pixels = tempContext.getImageData(0, 0, image.width, image.height).data;
 
-        setStatus(`Compressing ${file.name}…`);
+        setProgress(40, 'Reading pixels', `${formatBytes(pixels.byteLength)} RGBA data`);
+        setStatus(`Converting ${file.name}…`);
+        await new Promise(requestAnimationFrame);
+
+        const metadataValue = { sourceName: file.name, createdBy: 'SumanImg Studio', version: 1 };
         const buffer = await encodeSumanImg({
           width: image.width,
           height: image.height,
           rgba: pixels,
-          metadata: { sourceName: file.name, createdBy: 'SumanImg Viewer', version: 1 }
+          metadata: metadataValue,
+          onProgress: ({ percent, stage, detail }) => setProgress(percent, stage === 'compressing' ? 'Compressing pixels' : stage, detail)
         });
 
-        setStatus(`Preparing download for ${file.name}…`);
+        setProgress(94, 'Downloading', 'Preparing the SumanImg file');
         const blob = new Blob([buffer], { type: 'image/x-sumanimg' });
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = `${file.name.replace(/\.[^.]+$/, '')}.sumanImg`;
         link.click();
-        URL.revokeObjectURL(downloadUrl);
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 
-        /* The source pixels are already available, so do not decode the new file again. */
-        showPixels({
-          width: image.width,
-          height: image.height,
-          rgba: pixels,
-          metadata: { sourceName: file.name, createdBy: 'SumanImg Viewer', version: 1 }
-        });
+        showPixels({ width: image.width, height: image.height, rgba: pixels, metadata: metadataValue }, buffer.byteLength);
+        setProgress(100, 'Complete', `${formatBytes(buffer.byteLength)} SumanImg created`);
         setStatus(`Created ${link.download} successfully.`);
+        setTimeout(hideProgress, 900);
       } catch (error) {
+        setProgress(0, 'Conversion failed', error?.message || 'Unable to convert this image.');
+        progressBar.style.width = '0%';
         setStatus(error?.message || 'Unable to convert this image.', true);
+      } finally {
+        chooseButton.disabled = false;
+        convertButton.disabled = false;
       }
     }
 
@@ -217,24 +320,10 @@ Original XIMG viewer kept commented out before SumanImg replacement.
     convertButton.addEventListener('click', () => imageInput.click());
     fileInput.addEventListener('change', () => openSumanImg(fileInput.files[0]));
     imageInput.addEventListener('change', () => convertImage(imageInput.files[0]));
-    clearButton.addEventListener('click', () => {
-      fileInput.value = '';
-      imageInput.value = '';
-      resetViewer();
-    });
+    clearButton.addEventListener('click', () => { fileInput.value = ''; imageInput.value = ''; resetViewer(); });
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropzone.addEventListener(eventName, event => {
-        event.preventDefault();
-        dropzone.classList.add('dragging');
-      });
-    });
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropzone.addEventListener(eventName, event => {
-        event.preventDefault();
-        dropzone.classList.remove('dragging');
-      });
-    });
+    ['dragenter', 'dragover'].forEach(eventName => dropzone.addEventListener(eventName, event => { event.preventDefault(); dropzone.classList.add('dragging'); }));
+    ['dragleave', 'drop'].forEach(eventName => dropzone.addEventListener(eventName, event => { event.preventDefault(); dropzone.classList.remove('dragging'); }));
     dropzone.addEventListener('drop', event => {
       const file = event.dataTransfer.files[0];
       if (!file) return;
