@@ -20,7 +20,7 @@ The viewer can now:
 
 ## SumanImg v1
 
-The binary format is documented in [`XIMG-SPEC.md`](./XIMG-SPEC.md).
+The binary format is documented in [`SUMANIMG-SPEC.md`](./SUMANIMG-SPEC.md).
 
 Current v1 layout:
 
@@ -43,14 +43,14 @@ Pixel payload  DEFLATE-compressed RGBA8 bytes
 ```
 
 - File extension: `.sumanImg`
-- Recommended MIME type: `image/x-sumanimg`
 - Internal magic: `SMIG`
+- Recommended MIME type: `image/x-sumanimg`
 
 ## Files
 
-- `index.html` — GitHub Pages viewer/converter.
-- `ximg.js` — SumanImg browser encoder/decoder and validation logic.
-- `XIMG-SPEC.md` — SumanImg v1 binary specification.
+- `index.html` — static GitHub Pages viewer/converter.
+- `sumanImg.js` — browser encoder/decoder and validation logic.
+- `SUMANIMG-SPEC.md` — SumanImg v1 binary specification.
 
 ## Enable GitHub Pages
 
@@ -100,7 +100,6 @@ Everything in the viewer runs locally in the browser. No image upload server is 
 - [x] Local drag-and-drop viewer
 - [x] Metadata support
 - [x] CRC-32 integrity validation
-- [ ] Rename `ximg.js` to `sumanImg.js`
 - [ ] Node.js CLI encoder/decoder
 - [ ] Automated format test vectors
 - [ ] Optional lossless codec improvements
