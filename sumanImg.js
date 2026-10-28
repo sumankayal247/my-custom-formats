@@ -8,13 +8,34 @@ const SUMANIMG_HEADER_SIZE = 32;
 const SUMANIMG_VERSION = 1;
 const SUMANIMG_MAX_DIMENSION = 16384;
 
+/*
+ * Original CRC-32 implementation kept commented out before optimization.
+ *
+ * function crc32(bytes) {
+ *   let crc = 0xffffffff;
+ *   for (let i = 0; i < bytes.length; i++) {
+ *     crc ^= bytes[i];
+ *     for (let bit = 0; bit < 8; bit++) {
+ *       crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+ *     }
+ *   }
+ *   return (crc ^ 0xffffffff) >>> 0;
+ * }
+ */
+
+const CRC32_TABLE = new Uint32Array(256);
+for (let value = 0; value < 256; value++) {
+  let crc = value;
+  for (let bit = 0; bit < 8; bit++) {
+    crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  CRC32_TABLE[value] = crc >>> 0;
+}
+
 function crc32(bytes) {
   let crc = 0xffffffff;
   for (let i = 0; i < bytes.length; i++) {
-    crc ^= bytes[i];
-    for (let bit = 0; bit < 8; bit++) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
+    crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -94,6 +115,7 @@ export async function encodeSumanImg({ width, height, rgba, metadata = null }) {
   const meta = metadataBytes(metadata);
   if (meta.length > 0xffffffff) throw new Error("SumanImg: metadata is too large");
 
+  const pixelCrc = crc32(pixels);
   const compressed = await compressDeflate(pixels);
   if (compressed.length > 0xffffffff) throw new Error("SumanImg: payload is too large");
 
@@ -108,7 +130,7 @@ export async function encodeSumanImg({ width, height, rgba, metadata = null }) {
   view.setUint32(12, height, true);
   view.setUint32(16, compressed.length, true);
   view.setUint32(20, meta.length, true);
-  view.setUint32(24, crc32(pixels), true);
+  view.setUint32(24, pixelCrc, true);
   view.setUint32(28, 0, true);
 
   return concatBytes(new Uint8Array(header), meta, compressed).buffer;
