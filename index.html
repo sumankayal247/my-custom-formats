@@ -1,22 +1,146 @@
+<!--
+Original static UI kept here before replacement, per project change history:
+
+<main class="shell">
+  <div class="brand">XIMG Viewer</div>
+  <div class="tag">Custom image format</div>
+  <section class="panel">
+    <h1>Viewer ready</h1>
+    <p>This is the initial static interface for the XIMG web viewer.<br>Image decoding will be added with the XIMG specification.</p>
+  </section>
+  <div class="status">No image loaded</div>
+  <div class="footer">XIMG — an experimental web-compatible image format</div>
+</main>
+-->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Local browser viewer for the XIMG custom image format.">
   <title>XIMG Viewer</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f5f7;color:#17191c;min-height:100vh;display:grid;place-items:center}.shell{width:min(760px,92vw);background:#fff;border:1px solid #d9dce1;border-radius:18px;padding:32px;box-shadow:0 12px 40px rgba(0,0,0,.06)}.brand{font-size:28px;font-weight:700;letter-spacing:-.03em}.tag{display:inline-block;margin-top:8px;padding:5px 9px;border:1px solid #d9dce1;border-radius:999px;font-size:12px;color:#5d636b}.panel{margin-top:28px;border:1px dashed #b9bec6;border-radius:14px;padding:42px 24px;text-align:center;background:#fafafa}.panel h1{font-size:20px;margin:0 0 8px}.panel p{margin:0;color:#656b73;line-height:1.5}.status{margin-top:22px;padding-top:20px;border-top:1px solid #eceef1;color:#656b73;font-size:14px}.footer{margin-top:24px;font-size:12px;color:#858b93;text-align:center}</style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f5f7;color:#17191c;min-height:100vh;display:grid;place-items:center}
+    .shell{width:min(860px,94vw);background:#fff;border:1px solid #d9dce1;border-radius:18px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.06)}
+    .brand{font-size:28px;font-weight:700;letter-spacing:-.03em}
+    .tag{display:inline-block;margin-top:8px;padding:5px 9px;border:1px solid #d9dce1;border-radius:999px;font-size:12px;color:#5d636b}
+    .dropzone{margin-top:24px;border:1px dashed #aeb4bc;border-radius:14px;padding:34px 20px;text-align:center;background:#fafafa;transition:.15s ease}
+    .dropzone.dragging{border-color:#17191c;background:#f0f1f3}
+    .dropzone h1{font-size:20px;margin:0 0 8px}
+    .dropzone p{margin:0 0 18px;color:#656b73;line-height:1.5}
+    button{border:1px solid #17191c;background:#17191c;color:#fff;border-radius:9px;padding:9px 14px;font:inherit;cursor:pointer}
+    button.secondary{background:#fff;color:#17191c;border-color:#c7cbd1}
+    .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    #fileInput{display:none}
+    .viewer{display:none;margin-top:24px;border:1px solid #d9dce1;border-radius:14px;overflow:hidden;background:#111}
+    .viewer.visible{display:block}
+    canvas{display:block;width:100%;height:auto;max-height:65vh;object-fit:contain;background:#111}
+    .info{padding:14px 16px;background:#fff;border-top:1px solid #d9dce1;font-size:13px;color:#555b63;display:flex;gap:14px;flex-wrap:wrap}
+    .status{margin-top:18px;color:#656b73;font-size:14px;min-height:20px}
+    .status.error{color:#a22}
+    .footer{margin-top:22px;font-size:12px;color:#858b93;text-align:center}
+  </style>
 </head>
 <body>
   <main class="shell">
     <div class="brand">XIMG Viewer</div>
-    <div class="tag">Custom image format</div>
-    <section class="panel">
-      <h1>Viewer ready</h1>
-      <p>This is the initial static interface for the XIMG web viewer.<br>Image decoding will be added with the XIMG specification.</p>
+    <div class="tag">XIMG v1 · local decoding</div>
+
+    <section class="dropzone" id="dropzone">
+      <h1>Open an XIMG file</h1>
+      <p>Drop a <strong>.ximg</strong> file here, or choose one from your device.<br>The file is decoded locally in your browser.</p>
+      <div class="actions">
+        <button id="chooseButton" type="button">Choose XIMG</button>
+        <button id="clearButton" class="secondary" type="button" hidden>Clear</button>
+      </div>
+      <input id="fileInput" type="file" accept=".ximg,application/x-ximg">
     </section>
-    <div class="status">No image loaded</div>
+
+    <section class="viewer" id="viewer">
+      <canvas id="canvas"></canvas>
+      <div class="info">
+        <span id="dimensions"></span>
+        <span id="metadata"></span>
+      </div>
+    </section>
+
+    <div class="status" id="status">No image loaded</div>
     <div class="footer">XIMG — an experimental web-compatible image format</div>
   </main>
+
+  <script type="module">
+    import { decodeXIMG, isXIMG } from './ximg.js';
+
+    const fileInput = document.getElementById('fileInput');
+    const chooseButton = document.getElementById('chooseButton');
+    const clearButton = document.getElementById('clearButton');
+    const dropzone = document.getElementById('dropzone');
+    const viewer = document.getElementById('viewer');
+    const canvas = document.getElementById('canvas');
+    const status = document.getElementById('status');
+    const dimensions = document.getElementById('dimensions');
+    const metadata = document.getElementById('metadata');
+    const context = canvas.getContext('2d', { alpha: true });
+
+    function setStatus(message, error = false) {
+      status.textContent = message;
+      status.classList.toggle('error', error);
+    }
+
+    function resetViewer() {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = 0;
+      canvas.height = 0;
+      viewer.classList.remove('visible');
+      clearButton.hidden = true;
+      dimensions.textContent = '';
+      metadata.textContent = '';
+      setStatus('No image loaded');
+    }
+
+    async function openFile(file) {
+      if (!file) return;
+      setStatus(`Reading ${file.name}…`);
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (!isXIMG(bytes)) throw new Error('This is not a valid XIMG file.');
+        const image = await decodeXIMG(bytes);
+
+        canvas.width = image.width;
+        canvas.height = image.height;
+        context.putImageData(new ImageData(new Uint8ClampedArray(image.rgba), image.width, image.height), 0, 0);
+        viewer.classList.add('visible');
+        clearButton.hidden = false;
+        dimensions.textContent = `${image.width} × ${image.height}px`;
+        metadata.textContent = image.metadata ? `Metadata: ${JSON.stringify(image.metadata)}` : 'No metadata';
+        setStatus(`Loaded ${file.name} successfully.`);
+      } catch (error) {
+        resetViewer();
+        setStatus(error?.message || 'Unable to decode this XIMG file.', true);
+      }
+    }
+
+    chooseButton.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => openFile(fileInput.files[0]));
+    clearButton.addEventListener('click', () => {
+      fileInput.value = '';
+      resetViewer();
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropzone.classList.add('dragging');
+      });
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, event => {
+        event.preventDefault();
+        dropzone.classList.remove('dragging');
+      });
+    });
+    dropzone.addEventListener('drop', event => openFile(event.dataTransfer.files[0]));
+  </script>
 </body>
 </html>
