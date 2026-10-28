@@ -1,56 +1,179 @@
 # My Custom Formats
 
-Experimental custom file formats. The first format is **SumanImg**, a web-compatible custom image container.
+A home for multiple custom file formats. **SumanImg** is the first format in the project and is specifically for images. Future formats can live beside it without changing the project's overall purpose.
 
-## SumanImg Viewer
+## SumanImg
 
-The viewer is hosted with GitHub Pages:
-
-**https://sumankayal247.github.io/my-custom-formats/**
-
-The viewer can now:
-
-- Open `.sumanImg` files locally.
-- Drag and drop SumanImg files.
-- Decode SumanImg v1 RGBA8 + DEFLATE.
-- Verify the SumanImg CRC-32 integrity check.
-- Display image dimensions and embedded metadata.
-- Convert regular browser-supported images into `.sumanImg` files locally.
-- Download the generated `.sumanImg` without uploading the source image to a server.
-
-## SumanImg v1
-
-The binary format is documented in [`SUMANIMG-SPEC.md`](./SUMANIMG-SPEC.md).
-
-Current v1 layout:
-
-```text
-Header (32 bytes)
-  magic          4 bytes   SMIG
-  version        1 byte    1
-  flags          1 byte    0
-  color model    1 byte    RGBA8
-  compression    1 byte    DEFLATE
-  width          4 bytes
-  height         4 bytes
-  payload length 4 bytes
-  metadata len   4 bytes
-  CRC-32         4 bytes
-  reserved       4 bytes
-
-Metadata       UTF-8 JSON
-Pixel payload  DEFLATE-compressed RGBA8 bytes
-```
+SumanImg is a custom binary image format using the `.sumanImg` extension.
 
 - File extension: `.sumanImg`
 - Internal magic: `SMIG`
-- Recommended MIME type: `image/x-sumanimg`
+- MIME type: `image/x-sumanimg`
+- v1: lossless RGBA8 + raw DEFLATE
+- Optional UTF-8 JSON metadata
+- CRC-32 integrity checking
+
+The full binary specification is in [`SUMANIMG-SPEC.md`](./SUMANIMG-SPEC.md).
+
+## SumanImg Viewer
+
+The static browser viewer is intended for GitHub Pages:
+
+**https://sumankayal247.github.io/my-custom-formats/**
+
+It can:
+
+- Open `.sumanImg` files locally.
+- Drag and drop SumanImg files.
+- Decode SumanImg v1.
+- Verify CRC-32 integrity.
+- Display dimensions and metadata.
+- Convert normal browser-supported images to `.sumanImg`.
+- Download the generated `.sumanImg` without uploading the image to a server.
+
+## SumanImg CLI
+
+The repository also contains a command-line tool for converting images to SumanImg.
+
+### Install locally from this repository
+
+```bash
+npm install
+npm install -g .
+```
+
+After that, the command is simply:
+
+```bash
+sumanimg photo.png
+```
+
+This creates:
+
+```text
+photo.sumanImg
+```
+
+### Convert a whole folder
+
+You can paste a folder path directly:
+
+```bash
+sumanimg "/home/suman/Pictures"
+```
+
+All supported images in that folder are converted into a `sumanImg` subfolder:
+
+```text
+Pictures/
+├── photo1.jpg
+├── photo2.png
+├── wallpaper.webp
+└── sumanImg/
+    ├── photo1.sumanImg
+    ├── photo2.sumanImg
+    └── wallpaper.sumanImg
+```
+
+For subfolders too:
+
+```bash
+sumanimg "/home/suman/Pictures" --recursive
+```
+
+### Useful commands
+
+```bash
+# One image
+sumanimg photo.png
+
+# Folder
+sumanimg ./photos
+
+# Folder including subfolders
+sumanimg ./photos --recursive
+
+# Preview what would happen without converting
+sumanimg ./photos --dry-run
+
+# Replace existing output files
+sumanimg ./photos --overwrite
+
+# Choose a different output folder
+sumanimg ./photos --output ./converted
+
+# Convert SumanImg back to PNG
+sumanimg photo.sumanImg --decode
+
+# Inspect a SumanImg file
+sumanimg photo.sumanImg --info
+
+# Show help
+sumanimg --help
+```
+
+The CLI uses **Sharp** to read common image formats and the SumanImg core implementation to create the actual `.sumanImg` binary.
+
+## Automated SumanImg tests
+
+SumanImg has fixed test vectors and automated validation tests. They check things such as:
+
+- Known 1×1 and 2×2 SumanImg files decode correctly.
+- Encoding produces the expected binary bytes.
+- Pixels and metadata survive an encode/decode round trip.
+- Corrupted data is rejected.
+- Invalid magic bytes are rejected.
+- Unsupported versions are rejected.
+- Unexpected trailing data is rejected.
+
+Run them with:
+
+```bash
+npm test
+```
+
+GitHub Actions also runs these tests automatically when the SumanImg core, tests, package configuration, or workflow changes.
 
 ## Files
 
-- `index.html` — static GitHub Pages viewer/converter.
-- `sumanImg.js` — browser encoder/decoder and validation logic.
-- `SUMANIMG-SPEC.md` — SumanImg v1 binary specification.
+```text
+my-custom-formats/
+├── index.html                 # GitHub Pages viewer/converter
+├── sumanImg.js                # Browser SumanImg encoder/decoder
+├── sumanImg-core.mjs          # Node.js reference encoder/decoder
+├── sumanimg.mjs               # User-friendly SumanImg CLI
+├── SUMANIMG-SPEC.md           # SumanImg v1 binary specification
+├── package.json               # CLI package and test command
+├── tests/
+│   └── sumanImg.test.mjs      # Automated format tests + fixed vectors
+└── .github/workflows/
+    └── sumanimg-tests.yml     # Automatic test runner
+```
+
+## Architecture
+
+```text
+                 My Custom Formats
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+       SumanImg                    Future formats
+       (images)                    (added later)
+          │
+    ┌─────┴─────┐
+    │           │
+ Browser      Node.js
+ Viewer         CLI
+    │           │
+    └─────┬─────┘
+          │
+     SumanImg v1
+     Specification
+          │
+     Test Vectors
+```
+
+The browser and Node.js implementations follow the same SumanImg specification. The test vectors help make sure future changes do not silently break existing `.sumanImg` files.
 
 ## Enable GitHub Pages
 
@@ -63,45 +186,30 @@ If Pages is not already enabled:
 5. Select folder **`/ (root)`**.
 6. Click **Save**.
 7. Wait for GitHub Pages to deploy.
-8. Open:
-   `https://sumankayal247.github.io/my-custom-formats/`
+8. Open `https://sumankayal247.github.io/my-custom-formats/`.
 
-Because `index.html` is in the repository root, no build tool is required.
-
-## Architecture
-
-```text
-Regular image
-     ↓
-Browser canvas
-     ↓
-RGBA8 pixels
-     ↓
-SumanImg v1 encoder
-     ↓
-.sumanImg file
-
-.sumanImg file
-     ↓
-SumanImg v1 decoder
-     ↓
-RGBA8 pixels
-     ↓
-Browser canvas
-```
-
-Everything in the viewer runs locally in the browser. No image upload server is required.
+Because `index.html` is in the repository root, no build tool is required for the viewer.
 
 ## Roadmap
 
-- [x] SumanImg v1 binary specification
+### SumanImg
+
+- [x] v1 binary specification
 - [x] Browser decoder
 - [x] Browser encoder/converter
 - [x] Local drag-and-drop viewer
 - [x] Metadata support
 - [x] CRC-32 integrity validation
-- [ ] Node.js CLI encoder/decoder
-- [ ] Automated format test vectors
-- [ ] Optional lossless codec improvements
-- [ ] SumanImg v2 design for animation/thumbnails and additional codecs
+- [x] Node.js reference encoder/decoder
+- [x] User-friendly CLI
+- [x] Folder/batch conversion
+- [x] Automated test vectors
+- [x] GitHub Actions validation
+- [ ] Publish the CLI to npm for `npx` / global installation
 - [ ] Native desktop/mobile integration
+- [ ] Future SumanImg version only after v1 is stable
+
+### Project
+
+- [ ] Add the next custom file format as its own specification and implementation
+- [ ] Keep each format independently versioned and tested
