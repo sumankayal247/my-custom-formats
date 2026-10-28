@@ -54,29 +54,85 @@ function assertDimension(width, height) {
   return pixelLength;
 }
 
-async function streamBytes(bytes, format, mode) {
+/*
+ * Original streamBytes implementation kept commented out before diagnostic replacement.
+ *
+ * async function streamBytes(bytes, format, mode) {
+ *   if (typeof CompressionStream === "undefined" || typeof DecompressionStream === "undefined") {
+ *     throw new Error("SumanImg: this browser does not provide the CompressionStream API");
+ *   }
+ *   const Stream = mode === "compress" ? CompressionStream : DecompressionStream;
+ *   const stream = new Stream(format);
+ *   const writer = stream.writable.getWriter();
+ *   await writer.write(bytes);
+ *   await writer.close();
+ *   return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+ * }
+ */
+
+async function streamBytes(bytes, format, mode, onProgress = null) {
   if (typeof CompressionStream === "undefined" || typeof DecompressionStream === "undefined") {
     throw new Error("SumanImg: this browser does not provide the CompressionStream API");
   }
+
   const Stream = mode === "compress" ? CompressionStream : DecompressionStream;
+  reportLog(onProgress, `CompressionStream: creating ${format} stream`);
   const stream = new Stream(format);
+  reportLog(onProgress, "CompressionStream: stream created");
+
+  reportLog(onProgress, "CompressionStream: creating writable writer");
   const writer = stream.writable.getWriter();
+  reportLog(onProgress, "CompressionStream: writer created");
+
+  reportLog(onProgress, `CompressionStream: writer.write() START — ${bytes.byteLength} input bytes`);
+  const writeStart = performance.now();
   await writer.write(bytes);
+  reportLog(onProgress, `CompressionStream: writer.write() END — ${((performance.now() - writeStart) / 1000).toFixed(3)}s`);
+
+  reportLog(onProgress, "CompressionStream: writer.close() START");
+  const closeStart = performance.now();
   await writer.close();
-  return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  reportLog(onProgress, `CompressionStream: writer.close() END — ${((performance.now() - closeStart) / 1000).toFixed(3)}s`);
+
+  reportLog(onProgress, "CompressionStream: reading readable output START");
+  const readStart = performance.now();
+  const output = new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  reportLog(onProgress, `CompressionStream: reading readable output END — ${((performance.now() - readStart) / 1000).toFixed(3)}s, ${output.byteLength} output bytes`);
+  return output;
 }
+
+/*
+ * Original compressDeflate implementation kept commented out before diagnostic replacement.
+ *
+ * async function compressDeflate(bytes, onLog = null) {
+ *   try {
+ *     if (typeof onLog === "function") onLog("CompressionStream: starting deflate-raw");
+ *     const result = await streamBytes(bytes, "deflate-raw", "compress");
+ *     if (typeof onLog === "function") onLog(`CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
+ *     return result;
+ *   } catch (error) {
+ *     if (error instanceof TypeError) {
+ *       if (typeof onLog === "function") onLog("CompressionStream: deflate-raw unsupported; falling back to deflate");
+ *       const result = await streamBytes(bytes, "deflate", "compress");
+ *       if (typeof onLog === "function") onLog(`CompressionStream: deflate fallback returned ${result.byteLength} bytes`);
+ *       return result;
+ *     }
+ *     throw error;
+ *   }
+ * }
+ */
 
 async function compressDeflate(bytes, onLog = null) {
   try {
-    if (typeof onLog === "function") onLog("CompressionStream: starting deflate-raw");
-    const result = await streamBytes(bytes, "deflate-raw", "compress");
-    if (typeof onLog === "function") onLog(`CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
+    reportLog(onLog, "CompressionStream: starting deflate-raw");
+    const result = await streamBytes(bytes, "deflate-raw", "compress", onLog);
+    reportLog(onLog, `CompressionStream: deflate-raw returned ${result.byteLength} bytes`);
     return result;
   } catch (error) {
     if (error instanceof TypeError) {
-      if (typeof onLog === "function") onLog("CompressionStream: deflate-raw unsupported; falling back to deflate");
-      const result = await streamBytes(bytes, "deflate", "compress");
-      if (typeof onLog === "function") onLog(`CompressionStream: deflate fallback returned ${result.byteLength} bytes`);
+      reportLog(onLog, "CompressionStream: deflate-raw unsupported; falling back to deflate");
+      const result = await streamBytes(bytes, "deflate", "compress", onLog);
+      reportLog(onLog, `CompressionStream: deflate fallback returned ${result.byteLength} bytes`);
       return result;
     }
     throw error;
