@@ -226,7 +226,7 @@ The SumanImg v1 format and browser conversion API remain unchanged.
     const nerdToggle = document.getElementById('nerdToggle');
     const nerdToggleLabel = document.getElementById('nerdToggleLabel');
     const nerdCard = document.getElementById('nerdCard');
-    const nerdLog = document.getElementById('nerdLog');
+    const nerdLogElement = document.getElementById('nerdLog');
     const nerdDot = document.getElementById('nerdDot');
     const nerdLiveLabel = document.getElementById('nerdLiveLabel');
     const nerdElapsed = document.getElementById('nerdElapsed');
@@ -281,13 +281,13 @@ The SumanImg v1 format and browser conversion API remain unchanged.
       line.className = `nerd-line ${kind.toLowerCase()}`;
       line.innerHTML = `<span class="nerd-time">+${elapsed}</span><span class="nerd-kind">${kind}</span><span class="nerd-message"></span>`;
       line.querySelector('.nerd-message').textContent = message;
-      nerdLog.appendChild(line);
-      nerdLog.scrollTop = nerdLog.scrollHeight;
+      nerdLogElement.appendChild(line);
+      nerdLogElement.scrollTop = nerdLogElement.scrollHeight;
     }
 
     function startNerdMonitor(file) {
       stopNerdMonitor();
-      nerdLog.innerHTML = '';
+      nerdLogElement.innerHTML = '';
       nerdStartTime = performance.now();
       nerdDot.classList.add('active');
       nerdLiveLabel.textContent = 'Running';
@@ -475,7 +475,7 @@ The SumanImg v1 format and browser conversion API remain unchanged.
     });
 
     nerdCopy.addEventListener('click', async () => {
-      const text = [...nerdLog.querySelectorAll('.nerd-line')].map(line => line.textContent.trim()).join('\n');
+      const text = [...nerdLogElement.querySelectorAll('.nerd-line')].map(line => line.textContent.trim()).join('\n');
       try {
         await navigator.clipboard.writeText(text || 'No diagnostic events recorded.');
         nerdLog('Diagnostic log copied to clipboard', 'SUCCESS');
@@ -484,7 +484,7 @@ The SumanImg v1 format and browser conversion API remain unchanged.
       }
     });
 
-    nerdClear.addEventListener('click', () => { nerdLog.innerHTML = ''; nerdLog('Diagnostic log cleared'); });
+    nerdClear.addEventListener('click', () => { nerdLogElement.innerHTML = ''; nerdLog('Diagnostic log cleared'); });
     chooseButton.addEventListener('click', () => fileInput.click());
     convertButton.addEventListener('click', () => imageInput.click());
     fileInput.addEventListener('change', () => openSumanImg(fileInput.files[0]));
