@@ -1,0 +1,18 @@
+{
+  "name": "sumanimg-cli",
+  "version": "1.0.0",
+  "description": "Command-line tools for the SumanImg image format",
+  "type": "module",
+  "bin": {
+    "sumanimg": "./sumanimg.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "sharp": "^0.34.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
