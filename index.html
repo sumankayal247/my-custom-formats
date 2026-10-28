@@ -9,6 +9,8 @@ The SumanImg v1 format and browser conversion API remain unchanged.
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Fast, private browser viewer and converter for the SumanImg custom image format.">
   <meta name="theme-color" content="#0b1020">
+  <!-- SumanImg PWA file handling -->
+  <link rel="manifest" href="manifest.webmanifest">
   <title>SumanImg Studio</title>
   <style>
     /*
@@ -501,5 +503,6 @@ The SumanImg v1 format and browser conversion API remain unchanged.
       else setStatus('Drop a SumanImg or regular image file.', true);
     });
   </script>
+  <script src="file-handler.js"></script>
 </body>
 </html>
