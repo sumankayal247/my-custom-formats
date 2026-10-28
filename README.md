@@ -1,8 +1,8 @@
 # My Custom Formats
 
-Experimental custom file formats. The first format is **XIMG**, a web-compatible custom image container.
+Experimental custom file formats. The first format is **SumanImg**, a web-compatible custom image container.
 
-## XIMG Viewer
+## SumanImg Viewer
 
 The viewer is hosted with GitHub Pages:
 
@@ -10,15 +10,15 @@ The viewer is hosted with GitHub Pages:
 
 The viewer can now:
 
-- Open `.ximg` files locally.
-- Drag and drop XIMG files.
-- Decode XIMG v1 RGBA8 + DEFLATE.
-- Verify the XIMG CRC-32 integrity check.
+- Open `.sumanImg` files locally.
+- Drag and drop SumanImg files.
+- Decode SumanImg v1 RGBA8 + DEFLATE.
+- Verify the SumanImg CRC-32 integrity check.
 - Display image dimensions and embedded metadata.
-- Convert regular browser-supported images into `.ximg` files locally.
-- Download the generated `.ximg` without uploading the source image to a server.
+- Convert regular browser-supported images into `.sumanImg` files locally.
+- Download the generated `.sumanImg` without uploading the source image to a server.
 
-## XIMG v1
+## SumanImg v1
 
 The binary format is documented in [`XIMG-SPEC.md`](./XIMG-SPEC.md).
 
@@ -26,7 +26,7 @@ Current v1 layout:
 
 ```text
 Header (32 bytes)
-  magic          4 bytes   XIMG
+  magic          4 bytes   SMIG
   version        1 byte    1
   flags          1 byte    0
   color model    1 byte    RGBA8
@@ -42,13 +42,15 @@ Metadata       UTF-8 JSON
 Pixel payload  DEFLATE-compressed RGBA8 bytes
 ```
 
-Recommended MIME type: `image/x-ximg`
+- File extension: `.sumanImg`
+- Recommended MIME type: `image/x-sumanimg`
+- Internal magic: `SMIG`
 
 ## Files
 
-- `index.html` — static GitHub Pages viewer/converter.
-- `ximg.js` — browser encoder/decoder and validation logic.
-- `XIMG-SPEC.md` — XIMG v1 binary specification.
+- `index.html` — GitHub Pages viewer/converter.
+- `ximg.js` — SumanImg browser encoder/decoder and validation logic.
+- `XIMG-SPEC.md` — SumanImg v1 binary specification.
 
 ## Enable GitHub Pages
 
@@ -75,13 +77,13 @@ Browser canvas
      ↓
 RGBA8 pixels
      ↓
-XIMG v1 encoder
+SumanImg v1 encoder
      ↓
-.ximg file
+.sumanImg file
 
-.ximg file
+.sumanImg file
      ↓
-XIMG v1 decoder
+SumanImg v1 decoder
      ↓
 RGBA8 pixels
      ↓
@@ -92,14 +94,15 @@ Everything in the viewer runs locally in the browser. No image upload server is 
 
 ## Roadmap
 
-- [x] XIMG v1 binary specification
+- [x] SumanImg v1 binary specification
 - [x] Browser decoder
 - [x] Browser encoder/converter
 - [x] Local drag-and-drop viewer
 - [x] Metadata support
 - [x] CRC-32 integrity validation
+- [ ] Rename `ximg.js` to `sumanImg.js`
 - [ ] Node.js CLI encoder/decoder
 - [ ] Automated format test vectors
 - [ ] Optional lossless codec improvements
-- [ ] XIMG v2 design for animation/thumbnails and additional codecs
+- [ ] SumanImg v2 design for animation/thumbnails and additional codecs
 - [ ] Native desktop/mobile integration
