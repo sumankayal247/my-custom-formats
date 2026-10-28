@@ -14,6 +14,9 @@ on:
       - "package.json"
       - ".github/workflows/sumanimg-tests.yml"
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,3 +26,56 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  configure-pwa:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add SumanImg PWA hooks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("index.html")
+          text = path.read_text(encoding="utf-8")
+
+          manifest_marker = '<link rel="manifest" href="manifest.webmanifest">'
+          script_marker = '<script src="file-handler.js"></script>'
+
+          if manifest_marker not in text:
+              anchor = '<meta name="theme-color" content="#0b1020">'
+              if anchor not in text:
+                  raise SystemExit("theme-color meta tag not found")
+              text = text.replace(
+                  anchor,
+                  anchor + '\n  <!-- SumanImg PWA file handling -->\n  ' + manifest_marker,
+                  1,
+              )
+
+          if script_marker not in text:
+              anchor = '</body>'
+              if anchor not in text:
+                  raise SystemExit("closing body tag not found")
+              text = text.replace(
+                  anchor,
+                  '  ' + script_marker + '\n' + anchor,
+                  1,
+              )
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Commit PWA integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "PWA hooks already present"
+            exit 0
+          fi
+          git commit -m "Add SumanImg PWA file handling"
+          git push
