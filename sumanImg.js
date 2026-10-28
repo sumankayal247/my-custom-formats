@@ -102,6 +102,152 @@ async function streamBytes(bytes, format, mode, onProgress = null) {
 }
 
 /*
+ * Diagnostic replacement for the compression path.
+ * The tests deliberately compare the current write-then-read order against a
+ * concurrently drained readable side. This can detect a WritableStream backpressure
+ * deadlock without changing the SumanImg v1 format or production output.
+ */
+
+async function runCompressionDiagnostics(bytes, onLog = null) {
+  if (typeof CompressionStream === "undefined") {
+    reportLog(onLog, "DIAGNOSTIC: CompressionStream is unavailable; cannot run stream tests");
+    return;
+  }
+
+  reportLog(onLog, "DIAGNOSTIC: ===== CompressionStream deep test suite START =====");
+  reportLog(onLog, `DIAGNOSTIC: browser=${navigator?.userAgent || "unknown"}`);
+  reportLog(onLog, `DIAGNOSTIC: input bytes=${bytes.byteLength}`);
+  reportLog(onLog, `DIAGNOSTIC: input ArrayBuffer=${bytes.buffer.constructor?.name || "unknown"}, byteOffset=${bytes.byteOffset}, byteLength=${bytes.byteLength}`);
+  reportLog(onLog, `DIAGNOSTIC: CompressionStream type=${typeof CompressionStream}`);
+
+  const testBuffer = new Uint8Array(1024);
+  for (let i = 0; i < testBuffer.length; i++) testBuffer[i] = i & 0xff;
+
+  const runWithTimeout = async (label, operation, timeoutMs = 3000) => {
+    const started = performance.now();
+    let timeoutId = null;
+    try {
+      const result = await Promise.race([
+        operation(),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`TIMEOUT after ${timeoutMs}ms`)), timeoutMs);
+        })
+      ]);
+      if (timeoutId) clearTimeout(timeoutId);
+      reportLog(onLog, `DIAGNOSTIC: ${label} PASS in ${((performance.now() - started) / 1000).toFixed(3)}s`);
+      return { ok: true, result };
+    } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
+      reportLog(onLog, `DIAGNOSTIC: ${label} FAIL after ${((performance.now() - started) / 1000).toFixed(3)}s — ${error?.message || error}`);
+      return { ok: false, error };
+    }
+  };
+
+  const directConstruction = await runWithTimeout("construct deflate-raw stream", async () => {
+    const stream = new CompressionStream("deflate-raw");
+    return { writable: !!stream.writable, readable: !!stream.readable };
+  });
+  if (directConstruction.ok) {
+    reportLog(onLog, `DIAGNOSTIC: stream interfaces writable=${directConstruction.result.writable}, readable=${directConstruction.result.readable}`);
+  }
+
+  const tinySequential = await runWithTimeout("1KB sequential write", async () => {
+    const stream = new CompressionStream("deflate-raw");
+    const writer = stream.writable.getWriter();
+    await writer.write(testBuffer);
+    await writer.close();
+    return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  });
+  if (tinySequential.ok) {
+    reportLog(onLog, `DIAGNOSTIC: 1KB sequential output=${tinySequential.result.byteLength} bytes`);
+  }
+
+  const tinyConcurrent = await runWithTimeout("1KB concurrent drain + write", async () => {
+    const stream = new CompressionStream("deflate-raw");
+    const reader = stream.readable.getReader();
+    const output = [];
+    const drain = (async () => {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        output.push(chunk.value);
+      }
+    })();
+    const writer = stream.writable.getWriter();
+    await writer.write(testBuffer);
+    await writer.close();
+    await drain;
+    reader.releaseLock();
+    return output.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  });
+  if (tinyConcurrent.ok) {
+    reportLog(onLog, `DIAGNOSTIC: 1KB concurrent drained output=${tinyConcurrent.result} bytes`);
+  }
+
+  const actualSequential = await runWithTimeout("ACTUAL SIZE sequential write", async () => {
+    const stream = new CompressionStream("deflate-raw");
+    const writer = stream.writable.getWriter();
+    await writer.write(bytes);
+    await writer.close();
+    return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  }, 5000);
+  if (actualSequential.ok) {
+    reportLog(onLog, `DIAGNOSTIC: ACTUAL SIZE sequential output=${actualSequential.result.byteLength} bytes`);
+  }
+
+  const actualConcurrent = await runWithTimeout("ACTUAL SIZE concurrent drain + write", async () => {
+    const stream = new CompressionStream("deflate-raw");
+    const reader = stream.readable.getReader();
+    let outputBytes = 0;
+    const drain = (async () => {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        outputBytes += chunk.value.byteLength;
+      }
+    })();
+    const writer = stream.writable.getWriter();
+    await writer.write(bytes);
+    await writer.close();
+    await drain;
+    reader.releaseLock();
+    return outputBytes;
+  }, 5000);
+  if (actualConcurrent.ok) {
+    reportLog(onLog, `DIAGNOSTIC: ACTUAL SIZE concurrent drained output=${actualConcurrent.result} bytes`);
+  }
+
+  const chunkedConcurrent = await runWithTimeout("ACTUAL SIZE 64KB chunked + concurrent drain", async () => {
+    const stream = new CompressionStream("deflate-raw");
+    const reader = stream.readable.getReader();
+    let outputBytes = 0;
+    const drain = (async () => {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        outputBytes += chunk.value.byteLength;
+      }
+    })();
+    const writer = stream.writable.getWriter();
+    const chunkSize = 64 * 1024;
+    for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+      const end = Math.min(offset + chunkSize, bytes.byteLength);
+      reportLog(onLog, `DIAGNOSTIC: chunk write ${offset}-${end} (${end - offset} bytes)`);
+      await writer.write(bytes.subarray(offset, end));
+    }
+    await writer.close();
+    await drain;
+    reader.releaseLock();
+    return outputBytes;
+  }, 5000);
+  if (chunkedConcurrent.ok) {
+    reportLog(onLog, `DIAGNOSTIC: chunked concurrent output=${chunkedConcurrent.result} bytes`);
+  }
+
+  reportLog(onLog, "DIAGNOSTIC: ===== CompressionStream deep test suite END =====");
+}
+
+/*
  * Original compressDeflate implementation kept commented out before diagnostic replacement.
  *
  * async function compressDeflate(bytes, onLog = null) {
