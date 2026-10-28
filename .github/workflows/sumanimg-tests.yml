@@ -1,0 +1,25 @@
+name: SumanImg Tests
+
+on:
+  push:
+    paths:
+      - "sumanImg-core.mjs"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/sumanimg-tests.yml"
+  pull_request:
+    paths:
+      - "sumanImg-core.mjs"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/sumanimg-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
